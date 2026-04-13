@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json.schemastore.org/nodemonrc.json",
+  "watch": ["src"],
+  "ext": "js,json",
+  "ignore": ["node_modules", "__tests__", "coverage", "logs"],
+  "exec": "node src/server.js",
+  "delay": 1000
+}

@@ -1,0 +1,41 @@
+{
+  "env": {
+    "node": true,
+    "commonjs": true,
+    "es2021": true,
+    "jest": true
+  },
+  "extends": [
+    "airbnb-base",
+    "plugin:security/recommended-legacy",
+    "prettier"
+  ],
+  "plugins": ["security"],
+  "parserOptions": {
+    "ecmaVersion": "latest"
+  },
+  "rules": {
+    "no-console": "warn",
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    "consistent-return": "off",
+    "no-underscore-dangle": ["error", { "allow": ["_id", "_next", "__v"] }],
+    "import/no-dynamic-require": "warn",
+    "security/detect-object-injection": "off",
+    "security/detect-non-literal-fs-filename": "warn",
+    "prefer-destructuring": ["error", { "object": true, "array": false }],
+    "no-param-reassign": ["error", { "props": false }],
+    "class-methods-use-this": "off",
+    "func-names": "off",
+    "no-process-exit": "off",
+    "global-require": "warn"
+  },
+  "overrides": [
+    {
+      "files": ["**/__tests__/**", "**/*.test.js"],
+      "rules": {
+        "no-unused-expressions": "off",
+        "security/detect-non-literal-fs-filename": "off"
+      }
+    }
+  ]
+}
