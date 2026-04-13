@@ -1,0 +1,1065 @@
+// ============================================================
+// BFPS ERP Ecosystem - Prisma Schema
+// All 38 models as defined in FINAL_04 ERD Enhanced v2.0
+// Database: PostgreSQL on Supabase
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum UserRole {
+  MASTER_ADMIN
+  ADMIN
+  DIRECTOR
+  PRINCIPAL
+  VICE_PRINCIPAL
+  AC_COORDINATOR
+  TEACHER
+  IT_DEPT
+  ACCOUNTS
+  RECEPTION
+  MARKETING
+  TELECALLING
+  TRANSPORT_MANAGER
+  HOSTEL_WARDEN
+  LIBRARIAN
+  STUDENT
+  PARENT
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum BloodGroup {
+  A_POSITIVE
+  A_NEGATIVE
+  B_POSITIVE
+  B_NEGATIVE
+  O_POSITIVE
+  O_NEGATIVE
+  AB_POSITIVE
+  AB_NEGATIVE
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  HALF_DAY
+  EXCUSED
+}
+
+enum FeeStatus {
+  PENDING
+  PARTIAL
+  PAID
+  OVERDUE
+  WAIVED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CASH
+  RAZORPAY
+  CHEQUE
+  BANK_TRANSFER
+  UPI
+}
+
+enum ExamType {
+  UT
+  HY
+  ANNUAL
+  BOARD
+  MOCK
+  PRACTICAL
+}
+
+enum LeaveType {
+  CASUAL
+  MEDICAL
+  EARNED
+  EMERGENCY
+  OTHER
+}
+
+enum LeaveSource {
+  EMAIL
+  APP
+  MERGED
+}
+
+enum LeaveStatus {
+  PENDING_PRINCIPAL
+  PENDING_DIRECTOR
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ApprovalAction {
+  APPROVED
+  REJECTED
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  VISIT_SCHEDULED
+  VISIT_DONE
+  APPLIED
+  ADMITTED
+  LOST
+}
+
+enum AppSource {
+  FORM
+  EMAIL
+  MERGED
+}
+
+enum AppStatus {
+  NEW
+  REVIEWING
+  SHORTLISTED
+  INTERVIEW
+  SELECTED
+  REJECTED
+  WITHDRAWN
+  DUPLICATE_CANCELLED
+}
+
+enum EnqSource {
+  FORM
+  EMAIL
+  MERGED
+}
+
+enum EnqStatus {
+  NEW
+  READ
+  IN_PROGRESS
+  RESOLVED
+  DUPLICATE_CANCELLED
+}
+
+enum HostelRoomType {
+  SINGLE
+  DOUBLE
+  DORM
+}
+
+enum StaffAttendanceStatus {
+  PRESENT
+  ABSENT
+  ON_LEAVE
+  HALF_DAY
+}
+
+enum Stream {
+  SCIENCE
+  COMMERCE
+  ARTS
+  NONE
+}
+
+// ============================================================
+// SECTION 1: CORE DOMAIN MODELS
+// ============================================================
+
+model User {
+  id                 Int           @id @default(autoincrement())
+  email              String        @unique
+  passwordHash       String
+  role               UserRole
+  isActive           Boolean       @default(true)
+  is2FAEnabled       Boolean       @default(false)
+  twoFASecret        String?
+  failedLoginAttempts Int          @default(0)
+  lockedUntil        DateTime?
+  lastLoginAt        DateTime?
+  lastLoginIp        String?
+  passwordChangedAt  DateTime?
+  mustChangePassword Boolean       @default(true)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  // Relations
+  student            Student?
+  staff              Staff?
+  sessions           UserSession[]
+  auditLogs          AuditLog[]
+  notifications      Notification[] @relation("TargetUser")
+  leadsAssigned      Lead[]         @relation("AssignedTelecaller")
+  contactsHandled    ContactEnquiry[] @relation("HandledBy")
+
+  @@index([email])
+  @@index([role])
+  @@index([isActive])
+}
+
+model UserSession {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  refreshToken String   @unique
+  deviceInfo   String?
+  ipAddress    String
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([refreshToken])
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  module     String
+  action     String
+  entityId   String?
+  before     Json?
+  after      Json?
+  ipAddress  String
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([module, createdAt])
+}
+
+// ============================================================
+// SECTION 2: ACADEMIC DOMAIN
+// ============================================================
+
+model Class {
+  id           Int      @id @default(autoincrement())
+  name         String
+  numericGrade Int
+  section      String
+  stream       Stream   @default(NONE)
+  classTeacherId Int?
+  academicYear String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  // Relations
+  classTeacher Staff?       @relation("ClassTeacher", fields: [classTeacherId], references: [id])
+  students     Student[]
+  subjects     Subject[]
+  timetables   Timetable[]
+  attendance   Attendance[]
+  exams        Exam[]
+  homework     Homework[]
+  notifications Notification[] @relation("TargetClass")
+
+  @@unique([name, section, academicYear])
+  @@index([isActive])
+}
+
+model Subject {
+  id        Int      @id @default(autoincrement())
+  name      String
+  code      String   @unique
+  classId   Int
+  staffId   Int?
+  isElective Boolean @default(false)
+  createdAt DateTime @default(now())
+
+  // Relations
+  class      Class       @relation(fields: [classId], references: [id])
+  teacher    Staff?      @relation(fields: [staffId], references: [id])
+  timetables Timetable[]
+  attendance Attendance[]
+  exams      Exam[]
+  homework   Homework[]
+
+  @@unique([name, classId])
+}
+
+model Student {
+  id              Int       @id @default(autoincrement())
+  userId          Int       @unique
+  admissionNo     String    @unique
+  firstName       String
+  lastName        String
+  dateOfBirth     DateTime
+  gender          Gender
+  bloodGroup      BloodGroup?
+  religion        String?
+  category        String?
+  nationality     String    @default("Indian")
+  aadhaarEncrypted String?
+  classId         Int
+  section         String
+  rollNo          Int?
+  stream          Stream    @default(NONE)
+  previousSchool  String?
+  admissionDate   DateTime
+  photoUrl        String?
+  fatherName      String
+  motherName      String?
+  guardianName    String?
+  parentPhone     String
+  parentAltPhone  String?
+  parentEmail     String?
+  parentOccupation String?
+  address         String
+  city            String
+  state           String    @default("Punjab")
+  pincode         String
+  tcNumber        String?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  user              User               @relation(fields: [userId], references: [id])
+  class             Class              @relation(fields: [classId], references: [id])
+  attendance        Attendance[]
+  feePayments       FeePayment[]
+  examResults       ExamResult[]
+  homeworkSubmissions HomeworkSubmission[]
+  bookIssues        BookIssue[]
+  transport         StudentTransport?
+  hostelAllocation  HostelAllocation?
+  convertedFromLead Lead?              @relation("ConvertedStudent")
+
+  @@index([classId, section])
+  @@index([admissionNo])
+  @@index([isActive])
+  @@index([parentPhone])
+}
+
+model Staff {
+  id                Int      @id @default(autoincrement())
+  userId            Int      @unique
+  employeeId        String   @unique
+  firstName         String
+  lastName          String
+  dateOfBirth       DateTime?
+  gender            Gender
+  phone             String
+  altPhone          String?
+  personalEmail     String?
+  qualification     String?
+  specialization    String?
+  experience        String?
+  department        String
+  designation       String
+  dateOfJoining     DateTime
+  photoUrl          String?
+  aadhaarEncrypted  String?
+  panEncrypted      String?
+  bankAccountEncrypted String?
+  bankName          String?
+  ifscCode          String?
+  salary            Float?
+  showOnWebsite     Boolean  @default(false)
+  websiteBio        String?
+  websiteDisplayOrder Int?
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  user             User           @relation(fields: [userId], references: [id])
+  classesTeaching  Class[]        @relation("ClassTeacher")
+  subjects         Subject[]
+  timetables       Timetable[]    @relation("StaffTimetable")
+  substituteTimetables Timetable[] @relation("SubstituteStaff")
+  attendance       StaffAttendance[]
+  leaveRequests    LeaveRequest[] @relation("LeaveApplicant")
+  principalActions LeaveRequest[] @relation("PrincipalApprover")
+  directorActions  LeaveRequest[] @relation("DirectorApprover")
+  homework         Homework[]
+  examsCreated     Exam[]         @relation("ExamCreator")
+  resultsEntered   ExamResult[]   @relation("ResultEnteredBy")
+  booksIssued      BookIssue[]    @relation("BookIssuedBy")
+  wardensRooms     HostelRoom[]   @relation("RoomWarden")
+  visitorLogs      VisitorLog[]   @relation("VisitorMeetingPerson")
+
+  @@index([department])
+  @@index([isActive])
+  @@index([showOnWebsite])
+}
+
+model StaffAttendance {
+  id        Int                  @id @default(autoincrement())
+  staffId   Int
+  date      DateTime
+  status    StaffAttendanceStatus
+  checkIn   String?
+  checkOut  String?
+  note      String?
+  createdAt DateTime             @default(now())
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  @@unique([staffId, date])
+  @@index([staffId, date])
+}
+
+// ============================================================
+// SECTION 3: ATTENDANCE DOMAIN
+// ============================================================
+
+model Attendance {
+  id        Int              @id @default(autoincrement())
+  studentId Int
+  classId   Int
+  subjectId Int?
+  date      DateTime
+  period    Int
+  status    AttendanceStatus
+  markedBy  Int
+  note      String?
+  createdAt DateTime         @default(now())
+
+  student Student @relation(fields: [studentId], references: [id])
+  class   Class   @relation(fields: [classId], references: [id])
+  subject Subject? @relation(fields: [subjectId], references: [id])
+
+  @@unique([studentId, date, period])
+  @@index([studentId, date])
+  @@index([classId, date, period])
+}
+
+// ============================================================
+// SECTION 4: FEE DOMAIN
+// ============================================================
+
+model FeeStructure {
+  id           Int      @id @default(autoincrement())
+  className    String
+  feeType      String
+  amount       Float
+  dueDate      DateTime?
+  academicYear String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  @@unique([className, feeType, academicYear])
+}
+
+model FeePayment {
+  id            Int           @id @default(autoincrement())
+  receiptNo     String        @unique @default(cuid())
+  studentId     Int
+  feeType       String
+  amount        Float
+  paidAmount    Float
+  discount      Float         @default(0)
+  fineAmount    Float         @default(0)
+  status        FeeStatus     @default(PENDING)
+  paymentMethod PaymentMethod?
+  razorpayOrderId   String?
+  razorpayPaymentId String?
+  razorpaySignature String?
+  transactionId     String?
+  chequeNo          String?
+  chequeDate        DateTime?
+  paidAt            DateTime?
+  academicYear      String
+  collectedBy       Int?
+  receiptUrl        String?
+  reminderSent      Boolean   @default(false)
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id])
+
+  @@index([studentId])
+  @@index([status])
+  @@index([paidAt])
+  @@index([academicYear])
+}
+
+// ============================================================
+// SECTION 5: EXAMINATIONS DOMAIN
+// ============================================================
+
+model Exam {
+  id               Int      @id @default(autoincrement())
+  name             String
+  examType         ExamType
+  classId          Int
+  subjectId        Int
+  examDate         DateTime
+  startTime        String?
+  duration         Int?
+  maxMarks         Int
+  passingMarks     Int
+  venue            String?
+  academicYear     String
+  isResultPublished Boolean @default(false)
+  createdBy        Int
+  createdAt        DateTime @default(now())
+
+  class   Class   @relation(fields: [classId], references: [id])
+  subject Subject @relation(fields: [subjectId], references: [id])
+  creator Staff   @relation("ExamCreator", fields: [createdBy], references: [id])
+  results ExamResult[]
+
+  @@index([classId, academicYear])
+  @@index([examType])
+}
+
+model ExamResult {
+  id            Int      @id @default(autoincrement())
+  examId        Int
+  studentId     Int
+  marksObtained Float
+  grade         String?
+  percentage    Float?
+  isPassed      Boolean
+  rank          Int?
+  remarks       String?
+  enteredBy     Int
+  enteredAt     DateTime @default(now())
+
+  exam    Exam    @relation(fields: [examId], references: [id])
+  student Student @relation(fields: [studentId], references: [id])
+  staff   Staff   @relation("ResultEnteredBy", fields: [enteredBy], references: [id])
+
+  @@unique([examId, studentId])
+  @@index([examId])
+  @@index([studentId])
+}
+
+// ============================================================
+// SECTION 6: LEAVE MANAGEMENT DOMAIN
+// ============================================================
+
+model LeaveRequest {
+  id                 Int           @id @default(autoincrement())
+  ticketId           String        @unique @default(cuid())
+  staffId            Int
+  leaveType          LeaveType
+  fromDate           DateTime
+  toDate             DateTime
+  totalDays          Int
+  reason             String        @db.Text
+  source             LeaveSource
+  status             LeaveStatus   @default(PENDING_PRINCIPAL)
+  principalId        Int?
+  principalAction    ApprovalAction?
+  principalNote      String?
+  principalAt        DateTime?
+  directorId         Int?
+  directorAction     ApprovalAction?
+  directorNote       String?
+  directorAt         DateTime?
+  isDuplicate        Boolean       @default(false)
+  mergedIntoId       Int?
+  autoReplyEmailSent Boolean       @default(false)
+  pushNotifSent      Boolean       @default(false)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  staff     Staff  @relation("LeaveApplicant", fields: [staffId], references: [id])
+  principal Staff? @relation("PrincipalApprover", fields: [principalId], references: [id])
+  director  Staff? @relation("DirectorApprover", fields: [directorId], references: [id])
+
+  @@index([staffId, fromDate])
+  @@index([status])
+  @@index([isDuplicate])
+}
+
+// ============================================================
+// SECTION 7: CRM AND ADMISSIONS DOMAIN
+// ============================================================
+
+model Lead {
+  id                Int        @id @default(autoincrement())
+  referenceId       String     @unique @default(cuid())
+  studentName       String
+  parentName        String
+  phone             String
+  email             String?
+  classApplying     String
+  source            String
+  campaign          String?
+  status            LeadStatus @default(NEW)
+  assignedTo        Int?
+  nextFollowUp      DateTime?
+  notes             String?    @db.Text
+  convertedStudentId Int?      @unique
+  lostReason        String?
+  whatsappSent      Boolean    @default(false)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  assignee         User?    @relation("AssignedTelecaller", fields: [assignedTo], references: [id])
+  convertedStudent Student? @relation("ConvertedStudent", fields: [convertedStudentId], references: [id])
+
+  @@index([status, createdAt])
+  @@index([assignedTo, status])
+  @@index([source])
+}
+
+// ============================================================
+// SECTION 8: CAREER AND CONTACT DOMAINS
+// ============================================================
+
+model CareerApplication {
+  id               Int       @id @default(autoincrement())
+  referenceId      String    @unique @default(cuid())
+  jobPostingId     Int?
+  applicantName    String
+  email            String
+  phone            String?
+  position         String
+  experience       String?
+  qualification    String?
+  resumeUrl        String?
+  coverLetter      String?   @db.Text
+  source           AppSource
+  status           AppStatus @default(NEW)
+  isDuplicate      Boolean   @default(false)
+  mergedIntoId     Int?
+  deduplicationLog String?   @db.Text
+  autoReplySent    Boolean   @default(false)
+  adminNotes       String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  jobPosting JobPosting? @relation(fields: [jobPostingId], references: [id])
+
+  @@index([email, position])
+  @@index([status])
+  @@index([isDuplicate])
+  @@index([createdAt])
+}
+
+model ContactEnquiry {
+  id               Int       @id @default(autoincrement())
+  referenceId      String    @unique @default(cuid())
+  name             String
+  email            String?
+  phone            String?
+  subject          String
+  message          String    @db.Text
+  source           EnqSource
+  status           EnqStatus @default(NEW)
+  isDuplicate      Boolean   @default(false)
+  mergedIntoId     Int?
+  deduplicationLog String?
+  handledBy        Int?
+  adminNotes       String?
+  autoReplySent    Boolean   @default(false)
+  resolvedAt       DateTime?
+  createdAt        DateTime  @default(now())
+
+  handler User? @relation("HandledBy", fields: [handledBy], references: [id])
+
+  @@index([email, createdAt])
+  @@index([phone, createdAt])
+  @@index([status])
+  @@index([isDuplicate])
+}
+
+// ============================================================
+// SECTION 9: TIMETABLE AND HOMEWORK
+// ============================================================
+
+model Timetable {
+  id              Int      @id @default(autoincrement())
+  classId         Int
+  subjectId       Int
+  staffId         Int
+  dayOfWeek       Int      // 1=Monday ... 7=Sunday
+  period          Int      // 1-8
+  room            String?
+  isSubstitution  Boolean  @default(false)
+  substituteForId Int?
+  createdAt       DateTime @default(now())
+
+  class      Class   @relation(fields: [classId], references: [id])
+  subject    Subject @relation(fields: [subjectId], references: [id])
+  staff      Staff   @relation("StaffTimetable", fields: [staffId], references: [id])
+  substitute Staff?  @relation("SubstituteStaff", fields: [substituteForId], references: [id])
+
+  @@unique([classId, dayOfWeek, period])
+}
+
+model Homework {
+  id            Int      @id @default(autoincrement())
+  classId       Int
+  subjectId     Int
+  staffId       Int
+  title         String
+  description   String   @db.Text
+  dueDate       DateTime
+  attachmentUrl String?
+  createdAt     DateTime @default(now())
+
+  class       Class              @relation(fields: [classId], references: [id])
+  subject     Subject            @relation(fields: [subjectId], references: [id])
+  staff       Staff              @relation(fields: [staffId], references: [id])
+  submissions HomeworkSubmission[]
+}
+
+model HomeworkSubmission {
+  id            Int       @id @default(autoincrement())
+  homeworkId    Int
+  studentId     Int
+  submittedAt   DateTime  @default(now())
+  attachmentUrl String?
+  marks         Float?
+  feedback      String?
+
+  homework Homework @relation(fields: [homeworkId], references: [id])
+  student  Student  @relation(fields: [studentId], references: [id])
+
+  @@unique([homeworkId, studentId])
+}
+
+// ============================================================
+// SECTION 10: LIBRARY DOMAIN
+// ============================================================
+
+model Book {
+  id              Int      @id @default(autoincrement())
+  isbn            String   @unique
+  title           String
+  author          String
+  publisher       String?
+  category        String?
+  totalCopies     Int
+  availableCopies Int
+  shelfLocation   String?
+  createdAt       DateTime @default(now())
+
+  issues BookIssue[]
+}
+
+model BookIssue {
+  id         Int       @id @default(autoincrement())
+  bookId     Int
+  studentId  Int
+  issuedById Int
+  issueDate  DateTime  @default(now())
+  dueDate    DateTime
+  returnDate DateTime?
+  fineAmount Float     @default(0)
+  isPaid     Boolean   @default(false)
+
+  book    Book    @relation(fields: [bookId], references: [id])
+  student Student @relation(fields: [studentId], references: [id])
+  issuedBy Staff  @relation("BookIssuedBy", fields: [issuedById], references: [id])
+}
+
+// ============================================================
+// SECTION 11: TRANSPORT DOMAIN
+// ============================================================
+
+model TransportRoute {
+  id          Int      @id @default(autoincrement())
+  name        String
+  stops       Json     // [{name, lat, lng, order}]
+  vehicleNo   String?
+  driverId    String?
+  driverPhone String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  students StudentTransport[]
+}
+
+model StudentTransport {
+  id           Int      @id @default(autoincrement())
+  studentId    Int      @unique
+  routeId      Int
+  stopName     String
+  feeAmount    Float?
+  academicYear String
+
+  student Student        @relation(fields: [studentId], references: [id])
+  route   TransportRoute @relation(fields: [routeId], references: [id])
+
+  @@unique([studentId, academicYear])
+}
+
+// ============================================================
+// SECTION 12: HOSTEL DOMAIN
+// ============================================================
+
+model HostelRoom {
+  id               Int            @id @default(autoincrement())
+  roomNo           String         @unique
+  floor            Int
+  capacity         Int
+  type             HostelRoomType
+  currentOccupancy Int            @default(0)
+  wardenId         Int?
+  createdAt        DateTime       @default(now())
+
+  warden      Staff?             @relation("RoomWarden", fields: [wardenId], references: [id])
+  allocations HostelAllocation[]
+}
+
+model HostelAllocation {
+  id         Int       @id @default(autoincrement())
+  roomId     Int
+  studentId  Int       @unique
+  checkIn    DateTime
+  checkOut   DateTime?
+  monthlyFee Float?
+  isActive   Boolean   @default(true)
+
+  room    HostelRoom @relation(fields: [roomId], references: [id])
+  student Student    @relation(fields: [studentId], references: [id])
+}
+
+// ============================================================
+// SECTION 13: NOTIFICATION DOMAIN
+// ============================================================
+
+model Notification {
+  id            Int      @id @default(autoincrement())
+  title         String
+  message       String   @db.Text
+  type          String
+  targetRole    UserRole?
+  targetClassId Int?
+  targetUserId  Int?
+  channels      Json?    // ["EMAIL", "WHATSAPP", "SMS", "PUSH"]
+  sentAt        DateTime @default(now())
+  isRead        Boolean  @default(false)
+
+  targetClass Class? @relation("TargetClass", fields: [targetClassId], references: [id])
+  targetUser  User?  @relation("TargetUser", fields: [targetUserId], references: [id])
+
+  @@index([targetRole])
+  @@index([targetClassId])
+  @@index([targetUserId])
+}
+
+model SMSTemplate {
+  id           Int      @id @default(autoincrement())
+  name         String   @unique
+  templateType String
+  bodyEn       String   @db.Text
+  bodyHi       String?  @db.Text
+  variables    Json?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+}
+
+// ============================================================
+// SECTION 14: BLOG DOMAIN
+// ============================================================
+
+model BlogPost {
+  id              Int       @id @default(autoincrement())
+  title           String
+  slug            String    @unique
+  content         String    @db.Text
+  excerpt         String?
+  featuredImage   String?
+  category        String?
+  tags            Json?
+  authorId        Int
+  isPublished     Boolean   @default(false)
+  publishedAt     DateTime?
+  autoPosted      Boolean   @default(false)
+  autoPostSource  String?
+  views           Int       @default(0)
+  seoTitle        String?
+  seoDescription  String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([slug])
+  @@index([isPublished])
+  @@index([category])
+  @@index([publishedAt])
+}
+
+// ============================================================
+// SECTION 15: GALLERY DOMAIN
+// ============================================================
+
+model GalleryFolder {
+  id           Int      @id @default(autoincrement())
+  name         String
+  slug         String   @unique
+  description  String?
+  coverImage   String?
+  isVisible    Boolean  @default(true)
+  displayOrder Int      @default(0)
+  eventDate    DateTime?
+  createdAt    DateTime @default(now())
+
+  photos GalleryPhoto[]
+}
+
+model GalleryPhoto {
+  id           Int      @id @default(autoincrement())
+  folderId     Int
+  cloudinaryId String
+  url          String
+  caption      String?
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  folder GalleryFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+}
+
+// ============================================================
+// SECTION 16: WEBSITE CMS DOMAIN
+// ============================================================
+
+model SchoolContent {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique
+  value       String   @db.Text
+  dataType    String   @default("text")
+  updatedAt   DateTime @updatedAt
+  updatedById Int?
+}
+
+model WebsiteSlide {
+  id           Int      @id @default(autoincrement())
+  imageUrl     String
+  cloudinaryId String?
+  headline     String?
+  subHeadline  String?
+  ctaText      String?
+  ctaLink      String?
+  displayOrder Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+}
+
+model Testimonial {
+  id           Int      @id @default(autoincrement())
+  name         String
+  role         String
+  quote        String   @db.Text
+  photoUrl     String?
+  isVisible    Boolean  @default(true)
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+}
+
+model WebsiteProgram {
+  id           Int      @id @default(autoincrement())
+  title        String
+  description  String   @db.Text
+  imageUrl     String?
+  classes      String?
+  displayOrder Int      @default(0)
+  isVisible    Boolean  @default(true)
+  createdAt    DateTime @default(now())
+}
+
+model WebsiteFacility {
+  id           Int      @id @default(autoincrement())
+  title        String
+  description  String   @db.Text
+  imageUrl     String?
+  icon         String?
+  displayOrder Int      @default(0)
+  isVisible    Boolean  @default(true)
+  createdAt    DateTime @default(now())
+}
+
+model WebsiteHighlight {
+  id           Int      @id @default(autoincrement())
+  icon         String?
+  title        String
+  description  String
+  displayOrder Int      @default(0)
+  isVisible    Boolean  @default(true)
+  createdAt    DateTime @default(now())
+}
+
+model WebsiteStatistic {
+  id           Int      @id @default(autoincrement())
+  label        String
+  value        String
+  icon         String?
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+}
+
+// ============================================================
+// SECTION 17: CAREER POSTINGS
+// ============================================================
+
+model JobPosting {
+  id          Int       @id @default(autoincrement())
+  title       String
+  department  String
+  experience  String?
+  description String    @db.Text
+  isActive    Boolean   @default(true)
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  applications CareerApplication[]
+}
+
+// ============================================================
+// SECTION 18: VISITOR LOG
+// ============================================================
+
+model VisitorLog {
+  id             Int       @id @default(autoincrement())
+  visitorName    String
+  phone          String?
+  purpose        String
+  personToMeetId Int?
+  entryTime      DateTime  @default(now())
+  exitTime       DateTime?
+  visitorPassUrl String?
+
+  personToMeet Staff? @relation("VisitorMeetingPerson", fields: [personToMeetId], references: [id])
+}
+
+// ============================================================
+// SECTION 19: CHATBOT FAQ
+// ============================================================
+
+model ChatbotFAQ {
+  id           Int      @id @default(autoincrement())
+  question     String
+  answer       String   @db.Text
+  category     String?
+  isActive     Boolean  @default(true)
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+}
+
+// ============================================================
+// SECTION 20: SYSTEM HEALTH
+// ============================================================
+
+model SystemHealth {
+  id             Int      @id @default(autoincrement())
+  service        String   @unique
+  status         String
+  lastCheckedAt  DateTime @default(now())
+  responseTimeMs Int?
+  errorMessage   String?
+}
