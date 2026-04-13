@@ -21,6 +21,9 @@
     "db:reset": "prisma migrate reset --force",
     "audit": "npm audit --audit-level=critical"
   },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
   "keywords": [
     "bfps",
     "erp",
