@@ -7,6 +7,9 @@ const Sentry = require('@sentry/node');
 const { rateLimit } = require('express-rate-limit');
 const logger = require('./utils/logger');
 
+// Route imports
+const authRoutes = require('./routes/auth.routes');
+
 /**
  * BFPS ERP Backend - Express Application
  * Configured with: Helmet, CORS, Morgan, Compression, Rate Limiting, Sentry
@@ -154,14 +157,21 @@ app.get('/api/v1/health', (req, res) => {
   });
 });
 
-// ---------- API Routes (to be added) ----------
-// app.use('/api/v1/auth', authLimiter, authRoutes);
-// app.use('/api/v1/students', studentRoutes);
-// ... more routes added as modules are built
-
 // Export rate limiters for use in route files
 app.locals.publicLimiter = publicLimiter;
 app.locals.authLimiter = authLimiter;
+
+// ---------- API Routes ----------
+app.use('/api/v1/auth', authRoutes);
+// Additional routes will be added as modules are built:
+// app.use('/api/v1/students', studentRoutes);
+// app.use('/api/v1/attendance', attendanceRoutes);
+// app.use('/api/v1/fees', feeRoutes);
+// app.use('/api/v1/exams', examRoutes);
+// app.use('/api/v1/staff', staffRoutes);
+// app.use('/api/v1/leaves', leaveRoutes);
+// app.use('/api/v1/leads', leadRoutes);
+// app.use('/api/v1/notifications', notificationRoutes);
 
 // ---------- 404 Handler ----------
 app.use((req, res) => {
