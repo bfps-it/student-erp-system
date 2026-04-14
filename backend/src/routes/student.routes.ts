@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { createStudent, getStudentById, getAllStudents, updateStudent } from '../controllers/student.controller';
-import auth from '../middleware/auth';
+import { authenticate, authorize } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { createStudentSchema, updateStudentSchema } from '../validators/student.validator';
 
@@ -8,35 +8,39 @@ const router = Router();
 
 /**
  * BFPS ERP - Student Routes
- * Paths: /api/v1/students/...
+ * Prefix: /api/v1/students
+ * RBAC per FINAL_01 Section 4.2 permission matrix
  */
 
 // All routes require authentication
-router.use(auth());
+router.use(authenticate);
 
-// Admission / Create Student 
-// Depending on business logic, this could be limited to MASTER_ADMIN and ADMIN
+// Admission / Create Student (MASTER_ADMIN, ADMIN, RECEPTION only)
 router.post(
-  '/', // Must be an admin to admit a new student directly (bypass or specific RBAC could be applied)
+  '/',
+  authorize('ADMIN', 'RECEPTION'),
   validate(createStudentSchema),
   createStudent
 );
 
-// Get all students (Read)
+// Get all students (broad view access per permission matrix)
 router.get(
   '/',
+  authorize('ADMIN', 'DIRECTOR', 'PRINCIPAL', 'VICE_PRINCIPAL', 'AC_COORDINATOR', 'TEACHER', 'IT_DEPT', 'ACCOUNTS', 'RECEPTION'),
   getAllStudents
 );
 
 // Get student by ID
 router.get(
   '/:id',
+  authorize('ADMIN', 'DIRECTOR', 'PRINCIPAL', 'VICE_PRINCIPAL', 'AC_COORDINATOR', 'TEACHER', 'IT_DEPT', 'ACCOUNTS', 'RECEPTION'),
   getStudentById
 );
 
-// Update student by ID
+// Update student by ID (MASTER_ADMIN, ADMIN, PRINCIPAL, VICE_PRINCIPAL, RECEPTION)
 router.put(
   '/:id',
+  authorize('ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'RECEPTION'),
   validate(updateStudentSchema),
   updateStudent
 );
