@@ -1,74 +1,90 @@
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
-const { OTPAuth } = require('otpauth');
-const QRCode = require('qrcode');
-const crypto = require('crypto');
-const { prisma } = require('../config/database');
-const { getRedis } = require('../config/redis');
-const logger = require('../utils/logger');
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+import { OTPAuth } from 'otpauth';
+import QRCode from 'qrcode';
+import crypto from 'crypto';
+
+import { prisma } from '../config/database';
+import { getRedis } from '../config/redis';
+import logger from '../utils/logger';
+import type {
+  ServiceResult,
+  LoginResult,
+  TokenResult,
+  Setup2FAResult,
+  JwtAccessPayload,
+  JwtRefreshPayload,
+  Jwt2FAPayload,
+} from '../types';
 
 /**
- * BFPS ERP - Authentication Service
+ * BFPS ERP - Authentication Service (TypeScript)
  * Handles: JWT, bcrypt, TOTP 2FA, sessions, password management.
  */
 
-const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12;
-const ACCESS_EXPIRY = process.env.JWT_ACCESS_EXPIRES_IN || '15m';
-const REFRESH_EXPIRY = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
+const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS ?? '12', 10);
+const ACCESS_EXPIRY = process.env.JWT_ACCESS_EXPIRES_IN ?? '15m';
+const REFRESH_EXPIRY = process.env.JWT_REFRESH_EXPIRES_IN ?? '7d';
 const MAX_FAILED_ATTEMPTS = 5;
-const LOCK_DURATION_MINUTES = 15;
+const LOCK_DURATION_MINUTES = 30;
 
 /**
  * Generate JWT access token (15 min)
  */
-function generateAccessToken(user) {
-  return jwt.sign(
-    { userId: user.id, email: user.email, role: user.role },
-    process.env.JWT_ACCESS_SECRET,
-    { expiresIn: ACCESS_EXPIRY }
-  );
+function generateAccessToken(user: { id: number; email: string; role: string }): string {
+  const payload: JwtAccessPayload = {
+    userId: user.id,
+    email: user.email,
+    role: user.role as import('@prisma/client').UserRole,
+  };
+  return jwt.sign(payload, process.env.JWT_ACCESS_SECRET!, { expiresIn: ACCESS_EXPIRY });
 }
 
 /**
  * Generate JWT refresh token (7 days)
  */
-function generateRefreshToken(user) {
-  return jwt.sign(
-    { userId: user.id, tokenType: 'refresh' },
-    process.env.JWT_REFRESH_SECRET,
-    { expiresIn: REFRESH_EXPIRY }
-  );
+function generateRefreshToken(user: { id: number }): string {
+  const payload: JwtRefreshPayload = {
+    userId: user.id,
+    tokenType: 'refresh',
+  };
+  return jwt.sign(payload, process.env.JWT_REFRESH_SECRET!, { expiresIn: REFRESH_EXPIRY });
 }
 
 /**
  * Generate temporary token for 2FA flow
  */
-function generateTempToken(user) {
-  return jwt.sign(
-    { userId: user.id, tokenType: '2fa-pending' },
-    process.env.JWT_ACCESS_SECRET,
-    { expiresIn: '5m' }
-  );
+function generateTempToken(user: { id: number }): string {
+  const payload: Jwt2FAPayload = {
+    userId: user.id,
+    tokenType: '2fa-pending',
+  };
+  return jwt.sign(payload, process.env.JWT_ACCESS_SECRET!, { expiresIn: '5m' });
 }
 
 /**
  * Hash password with bcrypt
  */
-async function hashPassword(password) {
+async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, SALT_ROUNDS);
 }
 
 /**
  * Compare password with hash
  */
-async function comparePassword(password, hash) {
+async function comparePassword(password: string, hash: string): Promise<boolean> {
   return bcrypt.compare(password, hash);
 }
 
 /**
  * Login user
  */
-async function login(email, password, ipAddress, deviceInfo) {
+async function login(
+  email: string,
+  password: string,
+  ipAddress: string,
+  deviceInfo?: string
+): Promise<LoginResult> {
   // Find user
   const user = await prisma.user.findUnique({
     where: { email },
@@ -80,7 +96,7 @@ async function login(email, password, ipAddress, deviceInfo) {
 
   // Check if account is locked
   if (user.lockedUntil && user.lockedUntil > new Date()) {
-    const remainingMinutes = Math.ceil((user.lockedUntil - new Date()) / 60000);
+    const remainingMinutes = Math.ceil((user.lockedUntil.getTime() - new Date().getTime()) / 60000);
     return {
       success: false,
       code: 'ACCOUNT_LOCKED',
@@ -99,7 +115,7 @@ async function login(email, password, ipAddress, deviceInfo) {
   if (!passwordValid) {
     // Increment failed attempts
     const failedAttempts = user.failedLoginAttempts + 1;
-    const updateData = { failedLoginAttempts: failedAttempts };
+    const updateData: { failedLoginAttempts: number; lockedUntil?: Date } = { failedLoginAttempts: failedAttempts };
 
     if (failedAttempts >= MAX_FAILED_ATTEMPTS) {
       updateData.lockedUntil = new Date(Date.now() + LOCK_DURATION_MINUTES * 60 * 1000);
@@ -151,7 +167,7 @@ async function login(email, password, ipAddress, deviceInfo) {
     data: {
       userId: user.id,
       refreshToken,
-      deviceInfo: deviceInfo || null,
+      deviceInfo: deviceInfo ?? null,
       ipAddress,
       expiresAt,
     },
@@ -174,11 +190,17 @@ async function login(email, password, ipAddress, deviceInfo) {
 /**
  * Verify 2FA TOTP code and complete login
  */
-async function verify2FA(email, tempToken, totpCode, ipAddress, deviceInfo) {
+async function verify2FA(
+  email: string,
+  tempToken: string,
+  totpCode: string,
+  ipAddress: string,
+  deviceInfo?: string
+): Promise<LoginResult> {
   // Verify temp token
-  let decoded;
+  let decoded: Jwt2FAPayload;
   try {
-    decoded = jwt.verify(tempToken, process.env.JWT_ACCESS_SECRET);
+    decoded = jwt.verify(tempToken, process.env.JWT_ACCESS_SECRET!) as Jwt2FAPayload;
     if (decoded.tokenType !== '2fa-pending') {
       return { success: false, code: 'INVALID_TOKEN', message: 'Invalid 2FA token.' };
     }
@@ -187,7 +209,7 @@ async function verify2FA(email, tempToken, totpCode, ipAddress, deviceInfo) {
   }
 
   const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
-  if (!user || user.email !== email) {
+  if (!user || user.email !== email || !user.twoFASecret) {
     return { success: false, code: 'INVALID_TOKEN', message: 'Invalid 2FA session.' };
   }
 
@@ -225,7 +247,7 @@ async function verify2FA(email, tempToken, totpCode, ipAddress, deviceInfo) {
     data: {
       userId: user.id,
       refreshToken,
-      deviceInfo: deviceInfo || null,
+      deviceInfo: deviceInfo ?? null,
       ipAddress,
       expiresAt,
     },
@@ -247,11 +269,10 @@ async function verify2FA(email, tempToken, totpCode, ipAddress, deviceInfo) {
 /**
  * Refresh access token
  */
-async function refreshAccessToken(refreshTokenValue) {
+async function refreshAccessToken(refreshTokenValue: string): Promise<TokenResult> {
   // Verify refresh token
-  let decoded;
   try {
-    decoded = jwt.verify(refreshTokenValue, process.env.JWT_REFRESH_SECRET);
+    jwt.verify(refreshTokenValue, process.env.JWT_REFRESH_SECRET!);
   } catch {
     return { success: false, code: 'INVALID_TOKEN', message: 'Invalid or expired refresh token.' };
   }
@@ -298,7 +319,7 @@ async function refreshAccessToken(refreshTokenValue) {
 /**
  * Logout - delete session
  */
-async function logout(refreshTokenValue) {
+async function logout(refreshTokenValue: string): Promise<ServiceResult> {
   try {
     await prisma.userSession.delete({
       where: { refreshToken: refreshTokenValue },
@@ -313,7 +334,7 @@ async function logout(refreshTokenValue) {
 /**
  * Logout from all devices - delete all sessions
  */
-async function logoutAll(userId) {
+async function logoutAll(userId: number): Promise<ServiceResult> {
   await prisma.userSession.deleteMany({
     where: { userId },
   });
@@ -323,7 +344,7 @@ async function logoutAll(userId) {
 /**
  * Change password
  */
-async function changePassword(userId, currentPassword, newPassword) {
+async function changePassword(userId: number, currentPassword: string, newPassword: string): Promise<ServiceResult> {
   const user = await prisma.user.findUnique({ where: { id: userId } });
 
   if (!user) {
@@ -356,7 +377,7 @@ async function changePassword(userId, currentPassword, newPassword) {
 /**
  * Setup 2FA - generate secret and QR code
  */
-async function setup2FA(userId) {
+async function setup2FA(userId: number): Promise<Setup2FAResult> {
   const user = await prisma.user.findUnique({ where: { id: userId } });
 
   if (!user) {
@@ -400,8 +421,8 @@ async function setup2FA(userId) {
 /**
  * Verify 2FA setup - confirm TOTP code and enable 2FA
  */
-async function verify2FASetup(userId, totpCode) {
-  let secret;
+async function verify2FASetup(userId: number, totpCode: string): Promise<ServiceResult> {
+  let secret: string | null = null;
   const redis = getRedis();
 
   if (redis) {
@@ -410,7 +431,7 @@ async function verify2FASetup(userId, totpCode) {
 
   if (!secret) {
     const user = await prisma.user.findUnique({ where: { id: userId } });
-    secret = user?.twoFASecret;
+    secret = user?.twoFASecret ?? null;
   }
 
   if (!secret) {
@@ -451,7 +472,7 @@ async function verify2FASetup(userId, totpCode) {
 /**
  * Disable 2FA
  */
-async function disable2FA(userId) {
+async function disable2FA(userId: number): Promise<ServiceResult> {
   await prisma.user.update({
     where: { id: userId },
     data: {
@@ -466,7 +487,7 @@ async function disable2FA(userId) {
 /**
  * Forgot password - generate reset token
  */
-async function forgotPassword(email) {
+async function forgotPassword(email: string): Promise<ServiceResult> {
   const user = await prisma.user.findUnique({ where: { email } });
 
   // Always return success to prevent email enumeration
@@ -484,7 +505,6 @@ async function forgotPassword(email) {
   }
 
   // TODO: Send email with reset link
-  // await emailService.sendPasswordReset(user.email, resetToken);
   logger.info(`Password reset requested for ${email}. Token: ${resetToken}`);
 
   return { success: true, message: 'If the email exists, a reset link has been sent.' };
@@ -493,7 +513,7 @@ async function forgotPassword(email) {
 /**
  * Reset password using token
  */
-async function resetPassword(token, newPassword) {
+async function resetPassword(token: string, newPassword: string): Promise<ServiceResult> {
   const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
   const redis = getRedis();
 
@@ -532,7 +552,7 @@ async function resetPassword(token, newPassword) {
 /**
  * Get current user profile
  */
-async function getProfile(userId) {
+async function getProfile(userId: number): Promise<ServiceResult<unknown>> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
@@ -574,7 +594,7 @@ async function getProfile(userId) {
   return { success: true, data: user };
 }
 
-module.exports = {
+export {
   login,
   verify2FA,
   refreshAccessToken,
