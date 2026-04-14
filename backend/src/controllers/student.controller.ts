@@ -16,10 +16,6 @@ export const createStudent = async (req: Request, res: Response, next: NextFunct
       res.status(409).json({ success: false, message: error.message });
       return;
     }
-    if (error instanceof Error && error.message === 'Admission number conflict') {
-      res.status(409).json({ success: false, message: error.message });
-      return;
-    }
     next(error);
   }
 };
