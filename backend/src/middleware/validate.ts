@@ -1,24 +1,27 @@
-const { z } = require('zod');
+import { Request, Response, NextFunction } from 'express';
+import { ZodSchema, ZodError } from 'zod';
+
+import logger from '../utils/logger';
 
 /**
- * BFPS ERP - Validation Middleware Factory
+ * BFPS ERP - Validation Middleware Factory (TypeScript)
  * Creates Express middleware from Zod schemas.
  *
- * @param {z.ZodSchema} schema - Zod schema for validation
- * @param {string} source - Request property to validate ('body', 'query', 'params')
- * @returns {Function} Express middleware
+ * @param schema - Zod schema for validation
+ * @param source - Request property to validate ('body', 'query', 'params')
+ * @returns Express middleware
  *
  * @example
  * const loginSchema = z.object({ email: z.string().email(), password: z.string().min(8) });
  * router.post('/login', validate(loginSchema), loginController);
  */
-const validate = (schema, source = 'body') => {
-  return (req, res, next) => {
+const validate = (schema: ZodSchema, source: 'body' | 'query' | 'params' = 'body') => {
+  return (req: Request, res: Response, next: NextFunction): void => {
     try {
       const result = schema.safeParse(req[source]);
 
       if (!result.success) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: {
             code: 'VALIDATION_ERROR',
@@ -30,13 +33,17 @@ const validate = (schema, source = 'body') => {
             })),
           },
         });
+        return;
       }
 
       // Replace request data with parsed (and coerced) values
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       req[source] = result.data;
       next();
-    } catch (error) {
-      return res.status(400).json({
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      logger.error(`Validation middleware error: ${message}`);
+      res.status(400).json({
         success: false,
         error: {
           code: 'VALIDATION_ERROR',
@@ -47,4 +54,4 @@ const validate = (schema, source = 'body') => {
   };
 };
 
-module.exports = { validate };
+export { validate };
