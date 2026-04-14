@@ -1,8 +1,8 @@
-const { PrismaClient } = require('@prisma/client');
-const bcrypt = require('bcryptjs');
+import { PrismaClient, TemplateType } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 /**
- * BFPS ERP - Database Seed
+ * BFPS ERP - Database Seed (TypeScript)
  * Creates the hardcoded Master Admin user (superadmin@bfpsedu.in)
  * and initializes essential system data.
  */
@@ -17,7 +17,7 @@ async function main() {
   // ============================================
   const masterAdminEmail = process.env.MASTER_ADMIN_EMAIL || 'superadmin@bfpsedu.in';
   const masterAdminPassword = process.env.MASTER_ADMIN_PASSWORD || 'BFPS@SuperAdmin2026!';
-  const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12;
+  const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS ?? '12', 10);
   const passwordHash = await bcrypt.hash(masterAdminPassword, saltRounds);
 
   const masterAdmin = await prisma.user.upsert({
@@ -72,35 +72,35 @@ async function main() {
   const templates = [
     {
       name: 'attendance_absent',
-      templateType: 'ATTENDANCE',
+      templateType: 'ATTENDANCE' as TemplateType,
       bodyEn: 'Dear Parent, your child {{studentName}} of {{className}} was marked absent on {{date}}. Contact school for details. - BFPS',
       bodyHi: 'प्रिय अभिभावक, आपका बच्चा {{studentName}} कक्षा {{className}} में {{date}} को अनुपस्थित चिह्नित किया गया। विवरण के लिए स्कूल से संपर्क करें। - BFPS',
       variables: ['studentName', 'className', 'date'],
     },
     {
       name: 'fee_reminder',
-      templateType: 'FEE',
+      templateType: 'FEE' as TemplateType,
       bodyEn: 'Dear Parent, fee payment of Rs. {{amount}} for {{studentName}} ({{className}}) is pending. Please pay by {{dueDate}}. - BFPS',
       bodyHi: 'प्रिय अभिभावक, {{studentName}} ({{className}}) की Rs. {{amount}} फीस बकाया है। कृपया {{dueDate}} तक भुगतान करें। - BFPS',
       variables: ['studentName', 'className', 'amount', 'dueDate'],
     },
     {
       name: 'fee_received',
-      templateType: 'FEE',
+      templateType: 'FEE' as TemplateType,
       bodyEn: 'Dear Parent, Rs. {{amount}} received for {{studentName}} ({{className}}). Receipt: {{receiptNo}}. Thank you! - BFPS',
       bodyHi: 'प्रिय अभिभावक, {{studentName}} ({{className}}) के लिए Rs. {{amount}} प्राप्त हुआ। रसीद: {{receiptNo}}। धन्यवाद! - BFPS',
       variables: ['studentName', 'className', 'amount', 'receiptNo'],
     },
     {
       name: 'leave_status_update',
-      templateType: 'LEAVE',
+      templateType: 'LEAVE' as TemplateType,
       bodyEn: 'Dear {{teacherName}}, your leave request ({{ticketId}}) from {{fromDate}} to {{toDate}} has been {{status}}. - BFPS',
       bodyHi: 'प्रिय {{teacherName}}, आपका अवकाश अनुरोध ({{ticketId}}) {{fromDate}} से {{toDate}} तक {{status}} कर दिया गया है। - BFPS',
       variables: ['teacherName', 'ticketId', 'fromDate', 'toDate', 'status'],
     },
     {
       name: 'general_notification',
-      templateType: 'GENERAL',
+      templateType: 'GENERAL' as TemplateType,
       bodyEn: '{{message}} - Baba Farid Public School',
       bodyHi: '{{message}} - बाबा फरीद पब्लिक स्कूल',
       variables: ['message'],
