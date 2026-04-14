@@ -1,8 +1,8 @@
-const CryptoJS = require('crypto-js');
-const logger = require('./logger');
+import CryptoJS from 'crypto-js';
+import logger from './logger';
 
 /**
- * BFPS ERP - AES-256 Encryption Utility
+ * BFPS ERP - AES-256 Encryption Utility (TypeScript)
  * Used for: Aadhaar numbers, PAN numbers, bank account details.
  * Key: ENCRYPTION_KEY from environment (must be 32 characters).
  */
@@ -15,10 +15,10 @@ if (!ENCRYPTION_KEY && process.env.NODE_ENV === 'production') {
 
 /**
  * Encrypt a plaintext string using AES-256
- * @param {string} plaintext - Text to encrypt
- * @returns {string} Encrypted ciphertext (Base64)
+ * @param plaintext - Text to encrypt
+ * @returns Encrypted ciphertext (Base64)
  */
-function encrypt(plaintext) {
+export function encrypt(plaintext: string | null | undefined): string | null {
   if (!plaintext) return null;
   if (!ENCRYPTION_KEY) {
     logger.warn('ENCRYPTION_KEY not set. Returning plaintext (development only).');
@@ -28,17 +28,17 @@ function encrypt(plaintext) {
   try {
     return CryptoJS.AES.encrypt(plaintext, ENCRYPTION_KEY).toString();
   } catch (error) {
-    logger.error(`Encryption error: ${error.message}`);
+    logger.error(`Encryption error: ${(error as Error).message}`);
     throw new Error('Failed to encrypt data');
   }
 }
 
 /**
  * Decrypt a ciphertext string using AES-256
- * @param {string} ciphertext - Text to decrypt (Base64)
- * @returns {string} Decrypted plaintext
+ * @param ciphertext - Text to decrypt (Base64)
+ * @returns Decrypted plaintext
  */
-function decrypt(ciphertext) {
+export function decrypt(ciphertext: string | null | undefined): string | null {
   if (!ciphertext) return null;
   if (!ENCRYPTION_KEY) {
     logger.warn('ENCRYPTION_KEY not set. Returning ciphertext as-is (development only).');
@@ -55,7 +55,7 @@ function decrypt(ciphertext) {
 
     return decrypted;
   } catch (error) {
-    logger.error(`Decryption error: ${error.message}`);
+    logger.error(`Decryption error: ${(error as Error).message}`);
     throw new Error('Failed to decrypt data');
   }
 }
@@ -64,11 +64,11 @@ function decrypt(ciphertext) {
  * Mask a value for display purposes
  * Shows only last N characters.
  *
- * @param {string} value - Value to mask
- * @param {number} visibleChars - Number of visible chars at end (default: 4)
- * @returns {string} Masked value (e.g., 'XXXX XXXX 1234')
+ * @param value - Value to mask
+ * @param visibleChars - Number of visible chars at end (default: 4)
+ * @returns Masked value (e.g., 'XXXX XXXX 1234')
  */
-function maskValue(value, visibleChars = 4) {
+export function maskValue(value: string | null | undefined, visibleChars = 4): string | null {
   if (!value) return null;
 
   const cleanValue = value.replace(/\s/g, '');
@@ -84,12 +84,16 @@ function maskValue(value, visibleChars = 4) {
   return masked;
 }
 
+export interface EncryptedData {
+  encrypted: string | null;
+  masked: string | null;
+}
+
 /**
  * Encrypt and mask Aadhaar number
- * @param {string} aadhaar - 12-digit Aadhaar number
- * @returns {{ encrypted: string, masked: string }}
+ * @param aadhaar - 12-digit Aadhaar number
  */
-function encryptAadhaar(aadhaar) {
+export function encryptAadhaar(aadhaar: string | null | undefined): EncryptedData {
   if (!aadhaar) return { encrypted: null, masked: null };
 
   const clean = aadhaar.replace(/\s|-/g, '');
@@ -105,10 +109,9 @@ function encryptAadhaar(aadhaar) {
 
 /**
  * Encrypt PAN number
- * @param {string} pan - 10-character PAN
- * @returns {{ encrypted: string, masked: string }}
+ * @param pan - 10-character PAN
  */
-function encryptPAN(pan) {
+export function encryptPAN(pan: string | null | undefined): EncryptedData {
   if (!pan) return { encrypted: null, masked: null };
 
   const clean = pan.toUpperCase().trim();
@@ -124,10 +127,9 @@ function encryptPAN(pan) {
 
 /**
  * Encrypt bank account number
- * @param {string} accountNo - Bank account number
- * @returns {{ encrypted: string, masked: string }}
+ * @param accountNo - Bank account number
  */
-function encryptBankAccount(accountNo) {
+export function encryptBankAccount(accountNo: string | null | undefined): EncryptedData {
   if (!accountNo) return { encrypted: null, masked: null };
 
   return {
@@ -135,12 +137,3 @@ function encryptBankAccount(accountNo) {
     masked: maskValue(accountNo.trim()),
   };
 }
-
-module.exports = {
-  encrypt,
-  decrypt,
-  maskValue,
-  encryptAadhaar,
-  encryptPAN,
-  encryptBankAccount,
-};
