@@ -1,7 +1,7 @@
-const winston = require('winston');
+import winston from 'winston';
 
 /**
- * BFPS ERP - Winston Logger
+ * BFPS ERP - Winston Logger (TypeScript)
  * Structured JSON logging with levels: error, warn, info, http, debug
  */
 
@@ -23,7 +23,7 @@ const colors = {
 
 winston.addColors(colors);
 
-const level = () => {
+const level = (): string => {
   const env = process.env.NODE_ENV || 'development';
   return env === 'development' ? 'debug' : 'info';
 };
@@ -36,12 +36,12 @@ const format = winston.format.combine(
     : winston.format.combine(
         winston.format.colorize({ all: true }),
         winston.format.printf(
-          (info) => `${info.timestamp} [${info.level}]: ${info.message}${info.stack ? `\n${info.stack}` : ''}`
+          (info) => `${info.timestamp as string} [${info.level}]: ${info.message as string}${(info.stack as string | undefined) ? `\n${info.stack as string}` : ''}`
         )
       )
 );
 
-const transports = [
+const transports: winston.transport[] = [
   new winston.transports.Console(),
 ];
 
@@ -70,4 +70,4 @@ const logger = winston.createLogger({
   exitOnError: false,
 });
 
-module.exports = logger;
+export default logger;
