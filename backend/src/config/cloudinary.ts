@@ -1,12 +1,14 @@
-const cloudinary = require('cloudinary').v2;
-const logger = require('../utils/logger');
+import { v2 as cloudinary, UploadApiResponse } from 'cloudinary';
+
+import logger from '../utils/logger';
+import type { CloudinaryUploadResult, CloudinaryUploadOptions } from '../types';
 
 /**
- * BFPS ERP - Cloudinary Configuration
+ * BFPS ERP - Cloudinary Configuration (TypeScript)
  * File storage for: photos, resumes, documents, gallery images.
  */
 
-function configureCloudinary() {
+function configureCloudinary(): void {
   if (
     !process.env.CLOUDINARY_CLOUD_NAME ||
     !process.env.CLOUDINARY_API_KEY ||
@@ -28,48 +30,45 @@ function configureCloudinary() {
 
 /**
  * Upload file to Cloudinary
- * @param {string} filePath - Local file path or base64 string
- * @param {object} options - Upload options
- * @returns {object} Cloudinary upload result
  */
-async function uploadFile(filePath, options = {}) {
+async function uploadFile(
+  filePath: string,
+  options: CloudinaryUploadOptions = {}
+): Promise<CloudinaryUploadResult> {
   const defaultOptions = {
     folder: 'bfps-erp',
-    resource_type: 'auto',
+    resource_type: 'auto' as const,
     quality: 'auto',
     ...options,
   };
 
   try {
-    const result = await cloudinary.uploader.upload(filePath, defaultOptions);
+    const result: UploadApiResponse = await cloudinary.uploader.upload(filePath, defaultOptions);
     return {
       url: result.secure_url,
       publicId: result.public_id,
       format: result.format,
       size: result.bytes,
     };
-  } catch (error) {
-    logger.error(`Cloudinary upload error: ${error.message}`);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error(`Cloudinary upload error: ${message}`);
     throw error;
   }
 }
 
 /**
  * Delete file from Cloudinary
- * @param {string} publicId - Cloudinary public ID
  */
-async function deleteFile(publicId) {
+async function deleteFile(publicId: string): Promise<void> {
   try {
     await cloudinary.uploader.destroy(publicId);
     logger.debug(`Cloudinary file deleted: ${publicId}`);
-  } catch (error) {
-    logger.error(`Cloudinary delete error: ${error.message}`);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error(`Cloudinary delete error: ${message}`);
     throw error;
   }
 }
 
-module.exports = {
-  configureCloudinary,
-  uploadFile,
-  deleteFile,
-};
+export { configureCloudinary, uploadFile, deleteFile };
