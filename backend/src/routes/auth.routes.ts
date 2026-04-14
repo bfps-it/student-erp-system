@@ -1,22 +1,22 @@
-const express = require('express');
-const authController = require('../controllers/auth.controller');
-const { authenticate } = require('../middleware/auth');
-const { validate } = require('../middleware/validate');
-const {
+import { Router, Request, Response, NextFunction } from 'express';
+
+import * as authController from '../controllers/auth.controller';
+import { authenticate } from '../middleware/auth';
+import { validate } from '../middleware/validate';
+import {
   loginSchema,
   verify2FASchema,
   refreshTokenSchema,
   changePasswordSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
-  setup2FASchema,
   verify2FASetupSchema,
-} = require('../validators/auth.validator');
+} from '../validators/auth.validator';
 
-const router = express.Router();
+const router = Router();
 
 /**
- * BFPS ERP - Auth Routes
+ * BFPS ERP - Auth Routes (TypeScript)
  * Prefix: /api/v1/auth
  */
 
@@ -25,7 +25,15 @@ const router = express.Router();
 // Login
 router.post(
   '/login',
-  (req, res, next) => req.app.locals.authLimiter(req, res, next),
+  (req: Request, res: Response, next: NextFunction) => {
+    // Call the rate limiter middleware attached to app.locals
+    const limiter = req.app.locals.authLimiter;
+    if (limiter) {
+      limiter(req, res, next);
+    } else {
+      next();
+    }
+  },
   validate(loginSchema),
   authController.login
 );
@@ -33,7 +41,14 @@ router.post(
 // Verify 2FA code after login
 router.post(
   '/verify-2fa',
-  (req, res, next) => req.app.locals.authLimiter(req, res, next),
+  (req: Request, res: Response, next: NextFunction) => {
+    const limiter = req.app.locals.authLimiter;
+    if (limiter) {
+      limiter(req, res, next);
+    } else {
+      next();
+    }
+  },
   validate(verify2FASchema),
   authController.verify2FA
 );
@@ -48,7 +63,14 @@ router.post(
 // Forgot password
 router.post(
   '/forgot-password',
-  (req, res, next) => req.app.locals.authLimiter(req, res, next),
+  (req: Request, res: Response, next: NextFunction) => {
+    const limiter = req.app.locals.authLimiter;
+    if (limiter) {
+      limiter(req, res, next);
+    } else {
+      next();
+    }
+  },
   validate(forgotPasswordSchema),
   authController.forgotPassword
 );
@@ -56,7 +78,14 @@ router.post(
 // Reset password
 router.post(
   '/reset-password',
-  (req, res, next) => req.app.locals.authLimiter(req, res, next),
+  (req: Request, res: Response, next: NextFunction) => {
+    const limiter = req.app.locals.authLimiter;
+    if (limiter) {
+      limiter(req, res, next);
+    } else {
+      next();
+    }
+  },
   validate(resetPasswordSchema),
   authController.resetPassword
 );
@@ -99,6 +128,7 @@ router.get(
 router.post(
   '/2fa/setup',
   authenticate,
+  // Note: setup doesn't strictly need a validator here as it just generates a secret
   authController.setup2FA
 );
 
@@ -117,4 +147,4 @@ router.delete(
   authController.disable2FA
 );
 
-module.exports = router;
+export default router;
