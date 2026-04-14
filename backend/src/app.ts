@@ -11,6 +11,7 @@ import logger from './utils/logger';
 // Route imports
 import authRoutes from './routes/auth.routes';
 import studentRoutes from './routes/student.routes';
+import attendanceRoutes from './routes/attendance.routes';
 
 /**
  * BFPS ERP Backend - Express Application (TypeScript)
@@ -175,6 +176,7 @@ app.locals.authLimiter = authLimiter;
 // ---------- API Routes ----------
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/students', studentRoutes);
+app.use('/api/v1/attendance', attendanceRoutes);
 
 // ---------- 404 Handler ----------
 app.use((req: Request, res: Response): void => {
