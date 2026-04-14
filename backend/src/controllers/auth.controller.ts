@@ -1,24 +1,35 @@
-const authService = require('../services/auth.service');
-const logger = require('../utils/logger');
+import { Response, NextFunction } from 'express';
+
+import * as authService from '../services/auth.service';
+import type { AuthRequest } from '../types';
+import type {
+  LoginInput,
+  Verify2FAInput,
+  RefreshTokenInput,
+  ChangePasswordInput,
+  ForgotPasswordInput,
+  ResetPasswordInput,
+  Verify2FASetupInput,
+} from '../validators/auth.validator';
 
 /**
- * BFPS ERP - Auth Controller
+ * BFPS ERP - Auth Controller (TypeScript)
  * Handles all authentication-related HTTP endpoints.
  */
 
 /**
  * POST /api/v1/auth/login
  */
-const login = async (req, res, next) => {
+export const login = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { email, password } = req.body;
-    const ipAddress = req.ip;
+    const { email, password } = req.body as LoginInput;
+    const ipAddress = req.ip ?? 'unknown';
     const deviceInfo = req.headers['user-agent'];
 
     const result = await authService.login(email, password, ipAddress, deviceInfo);
 
     if (!result.success) {
-      return res.status(401).json({
+      res.status(401).json({
         success: false,
         error: {
           code: result.code,
@@ -26,10 +37,11 @@ const login = async (req, res, next) => {
           remainingAttempts: result.remainingAttempts,
         },
       });
+      return;
     }
 
     if (result.requires2FA) {
-      return res.status(200).json({
+      res.status(200).json({
         success: true,
         data: {
           requires2FA: true,
@@ -37,9 +49,10 @@ const login = async (req, res, next) => {
           message: result.message,
         },
       });
+      return;
     }
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       data: {
         user: result.user,
@@ -55,25 +68,26 @@ const login = async (req, res, next) => {
 /**
  * POST /api/v1/auth/verify-2fa
  */
-const verify2FA = async (req, res, next) => {
+export const verify2FA = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { email, tempToken, totpCode } = req.body;
-    const ipAddress = req.ip;
+    const { email, tempToken, totpCode } = req.body as Verify2FAInput;
+    const ipAddress = req.ip ?? 'unknown';
     const deviceInfo = req.headers['user-agent'];
 
     const result = await authService.verify2FA(email, tempToken, totpCode, ipAddress, deviceInfo);
 
     if (!result.success) {
-      return res.status(401).json({
+      res.status(401).json({
         success: false,
         error: {
           code: result.code,
           message: result.message,
         },
       });
+      return;
     }
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       data: {
         user: result.user,
@@ -89,22 +103,23 @@ const verify2FA = async (req, res, next) => {
 /**
  * POST /api/v1/auth/refresh
  */
-const refreshToken = async (req, res, next) => {
+export const refreshToken = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { refreshToken: token } = req.body;
+    const { refreshToken: token } = req.body as RefreshTokenInput;
     const result = await authService.refreshAccessToken(token);
 
     if (!result.success) {
-      return res.status(401).json({
+      res.status(401).json({
         success: false,
         error: {
           code: result.code,
           message: result.message,
         },
       });
+      return;
     }
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       data: {
         accessToken: result.accessToken,
@@ -119,12 +134,12 @@ const refreshToken = async (req, res, next) => {
 /**
  * POST /api/v1/auth/logout
  */
-const logout = async (req, res, next) => {
+export const logout = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { refreshToken: token } = req.body;
+    const { refreshToken: token } = req.body as RefreshTokenInput;
     await authService.logout(token);
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       data: { message: 'Logged out successfully.' },
     });
@@ -136,11 +151,16 @@ const logout = async (req, res, next) => {
 /**
  * POST /api/v1/auth/logout-all
  */
-const logoutAll = async (req, res, next) => {
+export const logoutAll = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
+    if (!req.user) {
+      res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'User not authenticated' } });
+      return;
+    }
+
     await authService.logoutAll(req.user.id);
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       data: { message: 'Logged out from all devices.' },
     });
@@ -152,22 +172,28 @@ const logoutAll = async (req, res, next) => {
 /**
  * PUT /api/v1/auth/change-password
  */
-const changePassword = async (req, res, next) => {
+export const changePassword = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { currentPassword, newPassword } = req.body;
+    if (!req.user) {
+      res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'User not authenticated' } });
+      return;
+    }
+
+    const { currentPassword, newPassword } = req.body as ChangePasswordInput;
     const result = await authService.changePassword(req.user.id, currentPassword, newPassword);
 
     if (!result.success) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         error: {
           code: result.code,
           message: result.message,
         },
       });
+      return;
     }
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       data: { message: result.message },
     });
@@ -179,12 +205,12 @@ const changePassword = async (req, res, next) => {
 /**
  * POST /api/v1/auth/forgot-password
  */
-const forgotPassword = async (req, res, next) => {
+export const forgotPassword = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { email } = req.body;
+    const { email } = req.body as ForgotPasswordInput;
     const result = await authService.forgotPassword(email);
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       data: { message: result.message },
     });
@@ -196,22 +222,23 @@ const forgotPassword = async (req, res, next) => {
 /**
  * POST /api/v1/auth/reset-password
  */
-const resetPassword = async (req, res, next) => {
+export const resetPassword = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { token, newPassword } = req.body;
+    const { token, newPassword } = req.body as ResetPasswordInput;
     const result = await authService.resetPassword(token, newPassword);
 
     if (!result.success) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         error: {
           code: result.code,
           message: result.message,
         },
       });
+      return;
     }
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       data: { message: result.message },
     });
@@ -223,21 +250,27 @@ const resetPassword = async (req, res, next) => {
 /**
  * POST /api/v1/auth/2fa/setup
  */
-const setup2FA = async (req, res, next) => {
+export const setup2FA = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
+    if (!req.user) {
+      res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'User not authenticated' } });
+      return;
+    }
+
     const result = await authService.setup2FA(req.user.id);
 
     if (!result.success) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         error: {
           code: result.code,
           message: result.message,
         },
       });
+      return;
     }
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       data: {
         secret: result.secret,
@@ -253,22 +286,28 @@ const setup2FA = async (req, res, next) => {
 /**
  * POST /api/v1/auth/2fa/verify
  */
-const verify2FASetup = async (req, res, next) => {
+export const verify2FASetup = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { totpCode } = req.body;
+    if (!req.user) {
+      res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'User not authenticated' } });
+      return;
+    }
+
+    const { totpCode } = req.body as Verify2FASetupInput;
     const result = await authService.verify2FASetup(req.user.id, totpCode);
 
     if (!result.success) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         error: {
           code: result.code,
           message: result.message,
         },
       });
+      return;
     }
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       data: { message: result.message },
     });
@@ -280,11 +319,16 @@ const verify2FASetup = async (req, res, next) => {
 /**
  * DELETE /api/v1/auth/2fa/disable
  */
-const disable2FA = async (req, res, next) => {
+export const disable2FA = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
+    if (!req.user) {
+      res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'User not authenticated' } });
+      return;
+    }
+
     const result = await authService.disable2FA(req.user.id);
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       data: { message: result.message },
     });
@@ -296,40 +340,31 @@ const disable2FA = async (req, res, next) => {
 /**
  * GET /api/v1/auth/profile
  */
-const getProfile = async (req, res, next) => {
+export const getProfile = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
+    if (!req.user) {
+      res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'User not authenticated' } });
+      return;
+    }
+
     const result = await authService.getProfile(req.user.id);
 
     if (!result.success) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         error: {
           code: result.code,
           message: result.message,
         },
       });
+      return;
     }
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       data: result.data,
     });
   } catch (error) {
     next(error);
   }
-};
-
-module.exports = {
-  login,
-  verify2FA,
-  refreshToken,
-  logout,
-  logoutAll,
-  changePassword,
-  forgotPassword,
-  resetPassword,
-  setup2FA,
-  verify2FASetup,
-  disable2FA,
-  getProfile,
 };
