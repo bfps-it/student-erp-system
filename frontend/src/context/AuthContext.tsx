@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import api from '../lib/axios';
 import { useRouter } from 'next/navigation';
 
@@ -14,7 +14,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   loginToken: (token: string, userData: User) => void;
-  logout: () => void;
+  logout: (callApi?: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,6 +25,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const router = useRouter();
 
+  const logout = useCallback(async (callApi = true) => {
+    try {
+      if (callApi) {
+        await api.post('/auth/logout');
+      }
+    } catch {
+      // Ignore errors on logout
+    } finally {
+      setAccessToken(null);
+      setUser(null);
+      router.push('/login');
+    }
+  }, [router]);
+
   // Load state on mount
   useEffect(() => {
     // Check if there is an active session
@@ -34,7 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (response.data?.success) {
           setUser(response.data.data.user);
         }
-      } catch (error) {
+      } catch {
         // Token might be missing or expired
         setUser(null);
       } finally {
@@ -51,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       window.removeEventListener('unauthorized', handleUnauthorized);
     };
-  }, []);
+  }, [logout]);
 
   // Update Axios interceptor memory reference
   useEffect(() => {
@@ -70,20 +84,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginToken = (token: string, userData: User) => {
     setAccessToken(token);
     setUser(userData);
-  };
-
-  const logout = async (callApi = true) => {
-    try {
-      if (callApi) {
-        await api.post('/auth/logout');
-      }
-    } catch {
-      // Ignore errors on logout
-    } finally {
-      setAccessToken(null);
-      setUser(null);
-      router.push('/login');
-    }
   };
 
   return (

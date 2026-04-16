@@ -5,7 +5,7 @@ import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'ax
 
 type FailedQueueItem = {
   resolve: (value?: unknown) => void;
-  reject: (reason?: any) => void;
+  reject: (reason?: unknown) => void;
 };
 
 // Singleton Axios Instance
@@ -21,7 +21,7 @@ const api: AxiosInstance = axios.create({
 let isRefreshing = false;
 let failedQueue: FailedQueueItem[] = [];
 
-const processQueue = (error: any, token: string | null = null) => {
+const processQueue = (error: unknown, token: string | null = null) => {
   failedQueue.forEach((prom) => {
     if (error) {
       prom.reject(error);
@@ -102,8 +102,8 @@ api.interceptors.response.use(
     }
 
     // Standardize error message formatting for shadcn Toasts
-    if (error.response?.data && (error.response.data as any).error) {
-      error.message = (error.response.data as any).error.message;
+    if (error.response?.data && (error.response.data as { error?: { message?: string } }).error) {
+      error.message = (error.response.data as { error: { message: string } }).error.message;
     }
     
     return Promise.reject(error);

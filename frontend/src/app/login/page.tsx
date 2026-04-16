@@ -67,9 +67,10 @@ export default function LoginPage() {
         });
         // Let useEffect handle routing to dashboard
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Axios interceptor will format the message or fallback here
-      const errorMsg = error.response?.data?.error?.message || error.message || 'An unexpected error occurred.';
+      const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
+      const errorMsg = err.response?.data?.error?.message || err.message || 'An unexpected error occurred.';
       toast({
         variant: "destructive",
         title: "Authentication Failed",
