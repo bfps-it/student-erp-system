@@ -1,8 +1,9 @@
+import crypto from 'crypto';
+
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import { OTPAuth } from 'otpauth';
+import * as OTPAuth from 'otpauth';
 import QRCode from 'qrcode';
-import crypto from 'crypto';
 
 import { prisma } from '../config/database';
 import { getRedis } from '../config/redis';
@@ -37,7 +38,7 @@ function generateAccessToken(user: { id: number; email: string; role: string }):
     email: user.email,
     role: user.role as import('@prisma/client').UserRole,
   };
-  return jwt.sign(payload, process.env.JWT_ACCESS_SECRET!, { expiresIn: ACCESS_EXPIRY });
+  return jwt.sign(payload, process.env.JWT_ACCESS_SECRET!, { expiresIn: ACCESS_EXPIRY as '15m' });
 }
 
 /**
@@ -48,7 +49,7 @@ function generateRefreshToken(user: { id: number }): string {
     userId: user.id,
     tokenType: 'refresh',
   };
-  return jwt.sign(payload, process.env.JWT_REFRESH_SECRET!, { expiresIn: REFRESH_EXPIRY });
+  return jwt.sign(payload, process.env.JWT_REFRESH_SECRET!, { expiresIn: REFRESH_EXPIRY as '7d' });
 }
 
 /**

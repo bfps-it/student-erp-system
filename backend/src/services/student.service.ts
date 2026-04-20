@@ -1,25 +1,64 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+
 import { prisma } from '../config/database';
-import { hashPassword } from './auth.service';
-import { encrypt } from '../utils/encryption';
+import { encryptAadhaar, decrypt, maskValue } from '../utils/encryption';
 import logger from '../utils/logger';
 import type { CreateStudentInput, UpdateStudentInput } from '../validators/student.validator';
+
+import { hashPassword } from './auth.service';
 
 /**
  * BFPS ERP - Student Service
  * Handles: Admission, CRUD, status changes
+ * 
+ * SECURITY: aadhaarEncrypted is AES-256 encrypted via encryption.ts.
+ * It is NEVER returned raw in any API response.
+ * All responses use sanitizeStudent() to strip ciphertext and return masked format.
  */
 
+// ─── Response Sanitization ────────────────────────────────
+
+/**
+ * Strips aadhaarEncrypted from a student record and replaces it with aadhaarMasked.
+ * This ensures the raw ciphertext never leaves the backend.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function sanitizeStudent(student: any): any {
+  if (!student) return student;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { aadhaarEncrypted, ...rest } = student;
+
+  let aadhaarMasked: string | null = null;
+  if (aadhaarEncrypted) {
+    try {
+      const decrypted = decrypt(aadhaarEncrypted as string);
+      aadhaarMasked = maskValue(decrypted);
+    } catch {
+      aadhaarMasked = null; // Decryption failed; do not expose anything
+    }
+  }
+
+  return { ...rest, aadhaarMasked };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function stripAadhaar(student: any): any {
+  if (!student) return student;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { aadhaarEncrypted, ...rest } = student;
+  return rest;
+}
+
+// ─── Create Student ────────────────────────────────────────
+
 export async function createStudent(data: CreateStudentInput) {
-  // Check if admission number or email exists
+  // Check if email exists
   const existingUser = await prisma.user.findUnique({ where: { email: data.email } });
   if (existingUser) {
     throw new Error('Email is already registered');
   }
 
-  // Generate admission number if not provided
-  // (In reality, we might auto-generate it if the field is optional, but schema requires it)
-  // Assuming the user provides it, or we would auto-generate here. For now we use the one passed or generate a mock one.
+  // Generate admission number
   const admissionNo = `ADM-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
   const existingStudent = await prisma.student.findUnique({ where: { admissionNo } });
@@ -29,6 +68,9 @@ export async function createStudent(data: CreateStudentInput) {
 
   // Create user
   const hashedPassword = await hashPassword(data.password);
+
+  // Encrypt Aadhaar with validation via encryptAadhaar()
+  const { encrypted: aadhaarEncrypted } = encryptAadhaar(data.aadhaarNumber);
   
   const student = await prisma.$transaction(async (tx) => {
     // Create the User corresponding to the student
@@ -42,8 +84,6 @@ export async function createStudent(data: CreateStudentInput) {
     });
 
     // Create the Student record
-    const aadhaarEncrypted = data.aadhaarNumber ? encrypt(data.aadhaarNumber) : null;
-    
     return tx.student.create({
       data: {
         userId: user.id,
@@ -96,8 +136,10 @@ export async function createStudent(data: CreateStudentInput) {
   });
 
   logger.info(`Student registered successfully: ${student.admissionNo} (${student.firstName})`);
-  return student;
+  return sanitizeStudent(student);
 }
+
+// ─── Get Student by ID ─────────────────────────────────────
 
 export async function getStudentById(id: number) {
   const student = await prisma.student.findUnique({
@@ -119,8 +161,11 @@ export async function getStudentById(id: number) {
     throw new Error('Student not found');
   }
 
-  return student;
+  // Return sanitized (aadhaarMasked instead of aadhaarEncrypted)
+  return sanitizeStudent(student);
 }
+
+// ─── Get All Students ──────────────────────────────────────
 
 export async function getAllStudents(params: {
   skip?: number;
@@ -151,8 +196,11 @@ export async function getAllStudents(params: {
     prisma.student.count({ where: filters })
   ]);
 
-  return { students, total, skip, take };
+  // Strip aadhaarEncrypted from list view (no need for masked display in list)
+  return { students: students.map(stripAadhaar), total, skip, take };
 }
+
+// ─── Update Student ────────────────────────────────────────
 
 export async function updateStudent(id: number, data: UpdateStudentInput) {
   const existing = await prisma.student.findUnique({ where: { id } });
@@ -160,16 +208,18 @@ export async function updateStudent(id: number, data: UpdateStudentInput) {
     throw new Error('Student not found');
   }
 
-  const aadhaarEncrypted = data.aadhaarNumber ? encrypt(data.aadhaarNumber) : undefined;
+  // Encrypt Aadhaar with validation via encryptAadhaar()
+  const aadhaarEncrypted = data.aadhaarNumber
+    ? encryptAadhaar(data.aadhaarNumber).encrypted
+    : undefined;
   
   const updated = await prisma.student.update({
     where: { id },
     data: {
-      ...data,
+      ...(({ aadhaarNumber, ...rest }) => rest)(data),
       dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined,
       admissionDate: data.admissionDate ? new Date(data.admissionDate) : undefined,
       aadhaarEncrypted: aadhaarEncrypted,
-      aadhaarNumber: undefined, // remove raw property
     },
     include: {
       class: {
@@ -179,5 +229,5 @@ export async function updateStudent(id: number, data: UpdateStudentInput) {
   });
 
   logger.info(`Student updated successfully: ${updated.admissionNo}`);
-  return updated;
+  return sanitizeStudent(updated);
 }

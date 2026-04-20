@@ -1,0 +1,819 @@
+FINAL_06 -- BFPS UI WIREFRAMES ENHANCED v2.0 -- ALL SCREENS -- PROMPT FOLDER DOCUMENT
+
+BABA FARID PUBLIC SCHOOL (BFPS)
+
+Kilianwali, Punjab | ICSE/ISC Board | PU170 | bfpsedu.in
+
+
+
+UI WIREFRAMES
+
+All Screens -- ERP + Website + Admin Panel + Mobile App
+
+FINAL_06 v2.0 | April 2026 | PROMPT FOLDER DOCUMENT
+
+
+
+For Anti-Gravity: Build every screen exactly as described. Supersedes BFPS_UI_Wireframes.docx.
+
+SECTION 1: DESIGN SYSTEM
+
+
+
+1.1 Colors
+
+Name
+
+Hex
+
+Usage
+
+BFPS Navy
+
+#1A3C6E
+
+Sidebar, headers, primary buttons, logo bg
+
+BFPS Blue
+
+#2563EB
+
+Links, accents, hover, secondary buttons
+
+BFPS Cyan
+
+#0EA5E9
+
+Badges, highlights, notification indicators
+
+BFPS Red
+
+#DC2626
+
+CTA buttons (Admission), alerts, absent status
+
+BFPS Gold
+
+#D97706
+
+Awards, achievements, pending status
+
+BFPS Green
+
+#16A34A
+
+Present, paid, approved, success states
+
+Text Dark
+
+#0F172A
+
+Primary body text
+
+Text Gray
+
+#64748B
+
+Subtitles, metadata, placeholders
+
+Background
+
+#EFF6FF
+
+Card backgrounds, alternating table rows
+
+White
+
+#FFFFFF
+
+Main content background
+
+
+
+1.2 Typography
+
+Context
+
+Font
+
+Size
+
+Web body text
+
+Inter
+
+16px (1rem)
+
+Web headings
+
+Poppins Bold
+
+24-48px
+
+ERP body
+
+Inter
+
+14px
+
+ERP headings
+
+Inter SemiBold
+
+18-24px
+
+PDF documents
+
+Arial
+
+10-14pt
+
+Code/IDs
+
+JetBrains Mono
+
+13px
+
+
+
+1.3 Component Standards
+
+Buttons: Primary (navy fill), Secondary (blue outline), Danger (red fill), Ghost (transparent)
+
+Cards: white bg, 1px border #E2E8F0, 8px border-radius, 16px padding, box-shadow sm
+
+Tables: alternating gray/white rows, sticky header, sortable columns, pagination
+
+Forms: 48px input height, 8px border-radius, red error states, green success states
+
+Badges: pill shape, color-coded per status (green=active, red=inactive, gold=pending)
+
+Loading: Skeleton loaders (not spinners). Every list and card has skeleton state.
+
+Errors: Toast notifications (top-right, auto-dismiss 5s), with action buttons
+
+Mobile: 100% responsive. Min tap target: 44px. No horizontal scroll.
+
+
+
+
+SECTION 2: ERP SCREENS (erp.bfpsedu.in)
+
+
+
+2.1 Login Page
+
+URL: /login
+
+Elements:
+
+  - BFPS logo (centered)
+
+  - Headline: 'BFPS ERP System'
+
+  - Input: Email address
+
+  - Input: Password (show/hide toggle)
+
+  - Button: 'Sign In' (primary, full width)
+
+  - Link: 'Forgot Password?'
+
+  - If 2FA required: shows TOTP input after password
+
+  - Error states: red banner below inputs
+
+  - Lock message: 'Account locked for X minutes' with countdown timer
+
+
+
+2.2 Admin Dashboard (/dashboard)
+
+LAYOUT: Sidebar (left, 240px) + Top Navbar + Main Content
+
+
+
+SIDEBAR:
+
+  - BFPS logo + school name
+
+  - Navigation items (role-based, grayed out if no access):
+
+    Dashboard | Students | Attendance | Fees | Examinations
+
+    Staff | Leaves | Timetable | Library | Transport | Hostel
+
+    Lead CRM | Notifications | Blog | Website CMS | Gallery
+
+    Careers | Contact Enquiries | Analytics | Reports
+
+    Settings (Master Admin only) | Health Monitor (Admin/IT)
+
+  - Collapse toggle (icon-only mode)
+
+  - User profile at bottom: photo, name, role badge, logout
+
+
+
+TOP NAVBAR:
+
+  - Breadcrumb (left): Dashboard
+
+  - Search bar (center): global search across students, staff, leads
+
+  - Notification bell (right): badge count of unread notifications
+
+  - Dark mode toggle
+
+  - User avatar dropdown: Profile | Change Password | Logout
+
+
+
+MAIN CONTENT (Admin Dashboard):
+
+  ROW 1 -- KPI Cards (4 cards):
+
+    [Total Students] [Today Attendance %] [Fees Collected Today] [New Leads Today]
+
+    Each card: metric value (large), label, trend arrow vs yesterday
+
+
+
+  ROW 2 -- Charts:
+
+    Left (60%): Attendance Trend (LineChart, last 30 days, Recharts)
+
+    Right (40%): Fees Collection (BarChart, monthly, current year)
+
+
+
+  ROW 3:
+
+    Left (50%): Recent Activity Feed (last 20 system actions with user, time, action)
+
+    Right (50%): Quick Actions panel
+
+      [Mark Attendance] [Collect Fee] [Add Lead] [Send Notification]
+
+      [View Defaulters] [Leaves Pending] [New Career Applications]
+
+
+
+2.3 Students Module
+
+LIST PAGE (/students):
+
+  - Filter bar: Class | Section | Stream | Status(Active/Inactive) | Search
+
+  - Action buttons: [Add Student] [Bulk Import] [Export]
+
+  - Table: Photo | Adm.No | Name | Class | Section | Parent Phone | Status | Actions
+
+  - Row actions: View | Edit | Print ID Card | Delete
+
+  - Pagination: 50 per page with total count
+
+
+
+ADD STUDENT DRAWER (slide-in from right):
+
+  Tab 1 - Personal: Name, DOB, Gender, Blood Group, Religion, Category
+
+  Tab 2 - Academic: Class, Section, Roll No, Admission Date, Previous School
+
+  Tab 3 - Family: Parent Name, Mother Name, Phone, Alt Phone, Email, Occupation
+
+  Tab 4 - Address: Full address, City, State, Pincode
+
+  Tab 5 - Documents: Photo upload, Aadhaar (encrypted), TC Number
+
+  Buttons: [Save Draft] [Submit]
+
+
+
+STUDENT PROFILE (/students/:id):
+
+  Header: Photo | Name | Admission No | Class | Status badge
+
+  Tabs:
+
+    Overview: Contact info, family, address, academic history
+
+    Attendance: Calendar heatmap + monthly percentage table
+
+    Fees: Ledger table + outstanding balance + Pay button
+
+    Exams: Results table per exam with grades and rank
+
+    Homework: Assigned and submitted homework list
+
+    Documents: Uploaded documents (Aadhaar masked, photo, TC)
+
+    Journey: Academic timeline from admission to now
+
+
+
+2.4 Attendance Module
+
+MARK ATTENDANCE (/attendance/mark):
+
+  Step 1: Select Class + Section + Date + Period + Subject
+
+  Step 2: Student list loads -- quick toggle: [P] Present [A] Absent [L] Late
+
+  Step 3: [Mark All Present] shortcut button
+
+  Step 4: [Save Attendance] button -- shows confirmation count
+
+  Already marked: shows existing records (edit mode for corrections)
+
+
+
+REPORTS (/attendance/reports):
+
+  - Class-wise monthly report (table + chart)
+
+  - Below 75% alert list
+
+  - Individual student attendance history
+
+  - Export: PDF | Excel | CSV
+
+
+
+2.5 Fee Management Module
+
+FEE COLLECTION (/fees/collect):
+
+  Step 1: Search student by name or admission number
+
+  Step 2: Shows: fee structure due, outstanding balance
+
+  Step 3: Select fee type(s) + amount
+
+  Step 4: Select payment method (Cash/Razorpay/Cheque)
+
+  Step 5: [Collect Payment] -> Razorpay opens for online / record for cash
+
+  Step 6: Receipt generated + email sent to parent
+
+
+
+DEFAULTER LIST (/fees/defaulters):
+
+  - Filter: Class | Min Outstanding Amount | Academic Year
+
+  - Table: Name | Class | Outstanding | Last Paid | Actions
+
+  - [Send WhatsApp Reminder] per row or [Bulk Remind Selected]
+
+  - Export to Excel
+
+
+
+2.6 Leaves Panel (/leaves)
+
+See FINAL_02 Leave Management document for complete UI spec
+
+Summary:
+
+  - Stats: Pending Principal | Pending Director | Approved | Rejected
+
+  - Filter: Status | Source (EMAIL/APP/MERGED) | Date range | Teacher
+
+  - Table: Ticket ID | Teacher | Type | Dates | Days | Source Tag | Status Badge
+
+  - Detail view: Full ticket + approval timeline + action buttons (role-based)
+
+
+
+2.7 Lead CRM (/leads)
+
+KANBAN VIEW (default):
+
+  Columns: New | Contacted | Visit Scheduled | Visit Done | Applied | Admitted | Lost
+
+  Cards: Student name | Parent | Phone | Source badge | Date | Assigned to
+
+  Drag-and-drop between columns to update status
+
+
+
+TABLE VIEW (toggle):
+
+  All leads in filterable table with search
+
+
+
+LEAD DETAIL:
+
+  Student and parent info | Status timeline | Call logs | Notes | WhatsApp button
+
+  [Convert to Admission] button when status = Applied
+
+
+
+2.8 Settings (Master Admin Only)
+
+/settings/roles:
+
+  - List of all roles
+
+  - Each role: expandable permission checklist
+
+  - Toggle any permission ON/OFF per role
+
+  - Save changes (takes effect on user's next login)
+
+
+
+/settings/users:
+
+  - All users list
+
+  - Add user: name, email, role, temp password
+
+  - Edit role: change assigned role
+
+  - Disable/enable account
+
+  NOTE: superadmin@bfpsedu.in does NOT appear in this list
+
+
+
+
+SECTION 3: WEBSITE PAGES (www.bfpsedu.in)
+
+
+
+3.1 Navigation (All Pages)
+
+Desktop: Logo (left) | Menu items (center) | 'Enquire Now' CTA button (right, red)
+
+Mobile: Logo (left) | Hamburger (right) -> Full-screen menu overlay
+
+Menu items: Home | About | Academics | Programs | Faculty | Facilities | Admissions | Gallery | Blog | Careers | Contact
+
+Sticky: stays fixed at top on scroll with shadow added
+
+
+
+3.2 Home Page Sections (in order)
+
+1. HERO BANNER
+
+   - Auto-sliding images (3-5 slides, 4 second interval, pause on hover)
+
+   - Overlay text: Headline + Subheadline (from CMS)
+
+   - Two CTA buttons: 'Apply for Admission' (red) | 'Know More' (outline white)
+
+   - Admission ticker: scrolling text bar below hero 'Admissions Open 2026-27'
+
+
+
+2. ABOUT US (preview)
+
+   - Left: school photo | Right: About text + 4 stat boxes
+
+   - Stat boxes: [X+ Students] [X+ Teachers] [X Years] [X Awards]
+
+   - 'Read More' button -> /about
+
+
+
+3. WHY CHOOSE BFPS
+
+   - Grid of 6-8 cards: icon + title + description (from CMS highlights)
+
+   - Animated entry on scroll
+
+
+
+4. OUR PROGRAMS
+
+   - Cards: Robotics | German | NEET/JEE | Sports | Computer Lab | Music/Art
+
+   - Each card: image + program name + class range + 'Know More' button
+
+
+
+5. STATISTICS
+
+   - Animated counter section (counts up when scrolled into view)
+
+   - [X+ Students] [X+ Teachers] [X Years] [X+ Achievements]
+
+
+
+6. TESTIMONIALS
+
+   - Carousel: parent/student quotes with photo and name
+
+   - Auto-advance every 5 seconds
+
+
+
+7. GALLERY PREVIEW
+
+   - Category tabs: All | Events | Sports | Academics | Campus
+
+   - Grid of 8 photos with lightbox on click
+
+   - 'View Full Gallery' button -> /gallery
+
+
+
+8. BLOG PREVIEW
+
+   - Latest 3 blog posts: thumbnail + category + title + date + excerpt
+
+   - 'View All Posts' button -> /blog
+
+
+
+9. ADMISSION CTA SECTION
+
+   - Full-width colored section
+
+   - Headline: 'Admissions Open for 2026-27'
+
+   - Mini admission enquiry form embedded
+
+   - Fields: Student Name | Parent Phone | Class Applying | [Submit] button
+
+
+
+10. SOCIAL MEDIA STRIP
+
+    - Icons: Facebook | Instagram | WhatsApp | Telegram | YouTube | LinkedIn | X | Threads | Snapchat
+
+    - Each links to respective handle
+
+
+
+11. FOOTER
+
+    - 3 columns: About BFPS | Quick Links | Contact Info
+
+    - Social media icons
+
+    - Bottom bar: Copyright | Privacy Policy | Terms of Use
+
+
+
+3.3 Contact Page (/contact)
+
+LEFT HALF: Google Maps embed | Address | Phone numbers | Email
+
+RIGHT HALF: Contact Form
+
+  Fields: Full Name (req) | Phone | Email (req) | Subject (req) | Message (req, min 20 chars)
+
+  Submit: POST /api/v1/contact
+
+  Success state: green banner 'Message received. We reply within 24 hours.'
+
+  Duplicate state: yellow banner 'Enquiry already on file. Our team will contact you.'
+
+
+
+3.4 Careers Page (/careers)
+
+TOP: 'Join Our Team at BFPS' heading + intro paragraph
+
+JOB LISTINGS: Cards for each active JobPosting
+
+  Each card: Position Title | Department | Experience | Description excerpt
+
+  [Apply Now] button opens application form (modal or scroll-to-form)
+
+
+
+APPLICATION FORM:
+
+  Full Name (req) | Phone (req) | Email (req) | Position (dropdown, req)
+
+  Experience | Qualification | Upload Resume (req, PDF/DOCX, max 5MB)
+
+  Cover Letter (optional textarea)
+
+  [Submit Application] button
+
+  Success: 'Application submitted. Reference ID: [id]. We will contact you.'
+
+  Duplicate: 'Your application is already on file. Ref: [primaryId].'
+
+
+
+
+SECTION 4: WEBSITE ADMIN PANEL (admin.bfpsedu.in)
+
+
+
+Layout: Same sidebar+navbar as ERP. Accessible to: MASTER_ADMIN, ADMIN, IT_DEPT, MARKETING
+
+Sidebar sections for admin panel:
+
+  Hero Slider | About Us | Vision & Mission | Why Choose BFPS
+
+  Programs | Facilities | Faculty (Staff) | Testimonials | Statistics
+
+  Gallery | Blog | Announcements | Careers | Contact Enquiries | Career Applications
+
+
+
+HERO SLIDER MANAGER:
+
+  - List of slides with drag-to-reorder
+
+  - Each slide: image thumbnail | headline | subheadline | CTA text | Active toggle
+
+  - [Add Slide]: upload image, enter text, set order
+
+  - [Delete] per slide
+
+
+
+CONTENT EDITORS (About, Vision, Mission):
+
+  - Rich text editor (TipTap or Quill) for long text fields
+
+  - Plain text inputs for short fields
+
+  - Image upload where applicable
+
+  - [Save Changes] button with instant preview link
+
+
+
+STAFF MANAGER:
+
+  - List of all staff with 'Show on Website' toggle
+
+  - Edit card: upload photo, name, designation, department, bio (500 chars max)
+
+  - Display order: drag to reorder
+
+
+
+GALLERY MANAGER:
+
+  - Create folder: name, slug, event date, cover image
+
+  - Inside folder: upload multiple photos at once, add captions, set order, delete
+
+
+
+ANNOUNCEMENTS MANAGER:
+
+  - Ticker text: enter text, set active dates
+
+  - Popup: title, message, image, CTA button, show after X seconds, frequency
+
+  - Banner: text, background color, CTA, active dates
+
+
+
+
+SECTION 5: MOBILE APP SCREENS (Flutter)
+
+
+
+5.1 All Roles: Login and Common
+
+SPLASH SCREEN: BFPS logo (2 seconds) -> auto-redirect if token valid
+
+LOGIN SCREEN: Logo | Email | Password | Show/Hide | Sign In button | Forgot Password
+
+  - 2FA screen if required: 6-digit TOTP input
+
+NOTIFICATION CENTER: List of all notifications, unread highlighted, tap to expand
+
+PROFILE SCREEN: Photo | Name | Role | Email | Change Password button | Logout
+
+
+
+5.2 Parent / Student Role
+
+HOME DASHBOARD:
+
+  Card 1: Today's attendance status (Present / Absent)
+
+  Card 2: Fee outstanding balance with [Pay Now] button
+
+  Card 3: Upcoming exam dates
+
+  Card 4: Latest notification
+
+  Bottom nav: Home | Attendance | Fees | Results | More
+
+
+
+ATTENDANCE SCREEN:
+
+  - Month calendar view with color dots (green=present, red=absent, yellow=late)
+
+  - Below calendar: attendance percentage (large, color-coded)
+
+  - Period-wise list view (toggle)
+
+
+
+FEES SCREEN:
+
+  - Outstanding balance (large, red if > 0)
+
+  - [Pay Now] button (Razorpay SDK opens)
+
+  - Payment history list: date | amount | receipt download button
+
+
+
+RESULTS SCREEN:
+
+  - Exam type selector (Unit Test / Half Yearly / Annual)
+
+  - Marks table: Subject | Marks | Max | Grade | Pass/Fail
+
+  - [Download Report Card] PDF button
+
+
+
+5.3 Teacher Role
+
+HOME DASHBOARD:
+
+  Today's periods list | Pending homework submissions | Leave status card
+
+  Bottom nav: Home | Attendance | Homework | Marks | My Leave
+
+
+
+QUICK ATTENDANCE:
+
+  Step 1: Select Class + Period (pre-filled if now matches timetable)
+
+  Step 2: Student list with large P/A toggle buttons
+
+  Step 3: [Submit] -> success screen with count
+
+
+
+MY LEAVE SCREEN:
+
+  - My leave history list with status badges
+
+  - [Apply Leave] fab button -> form: type, dates, reason, optional attachment
+
+
+
+5.4 Admin Role (Mobile)
+
+HOME DASHBOARD:
+
+  KPI cards: Students | Today Attendance% | Fees Today | New Leads
+
+  Pending actions: Leaves awaiting | Career applications | Contact enquiries
+
+  Bottom nav: Home | Leads | Approvals | Notifications | More
+
+
+
+LEADS SCREEN:
+
+  - Pipeline view or list view toggle
+
+  - Swipe lead card to update status
+
+  - Tap lead -> detail + call button + WhatsApp button
+
+
+
+5.5 Principal Role (Mobile)
+
+LEAVES PANEL (primary use case):
+
+  - List of leaves PENDING_PRINCIPAL with teacher name, dates, type
+
+  - Tap to open detail -> [Approve] [Reject] buttons
+
+  - Rejection requires typed reason
+
+
+
+5.6 Director Role (Mobile)
+
+LEAVES PANEL (primary use case):
+
+  - List of leaves PENDING_DIRECTOR
+
+  - Same approve/reject workflow as Principal
+
+
+
+END OF DOCUMENT
+
+FINAL_06 UI Wireframes Enhanced v2.0 | PROMPT FOLDER | April 2026
+
+Baba Farid Public School | ERP + Website + Admin Panel + Mobile App | April 2026

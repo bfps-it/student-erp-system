@@ -1,0 +1,467 @@
+FINAL_09 -- BFPS SYSTEM VISION -- ENHANCED ULTIMATE MASTER DOC v2.0 -- PROMPT FOLDER
+
+BABA FARID PUBLIC SCHOOL (BFPS)
+
+Kilianwali, Punjab | ICSE/ISC Board | PU170 | bfpsedu.in
+
+
+
+BFPS SYSTEM VISION
+
+Enhanced Ultimate Master Document -- Ecosystem Overview
+
+FINAL_09 v2.0 | April 2026 | PROMPT FOLDER DOCUMENT
+
+
+
+Enhanced from original BFPS_ULTIMATE_MASTER_DOCUMENT.docx. Provides big-picture context for Anti-Gravity.
+
+SECTION 1: SYSTEM VISION
+
+
+
+Build a fully integrated, enterprise-grade school ecosystem where Website, ERP, Mobile App, Blog, Email, and AI are completely connected.
+
+Any action in one system reflects across all systems in real-time.
+
+Single source of truth: the ERP PostgreSQL database.
+
+Everything goes through the /api/v1/ layer. No system talks to another directly.
+
+
+
+SECTION 2: ECOSYSTEM ARCHITECTURE
+
+
+
+www.bfpsedu.in (Website)
+
+  <--> /api/v1/leads, /contact, /careers, /gallery, /cms, /blog-posts
+
+  <--> ERP Database (via API only)
+
+  <--> Cloudinary (images, gallery)
+
+
+
+erp.bfpsedu.in (ERP)
+
+  <--> PostgreSQL on Supabase (primary database)
+
+  <--> Redis on Upstash (cache + rate limiting)
+
+  <--> Serverbyte SMTP (email via noreply@bfpsedu.in)
+
+  <--> Serverbyte IMAP (read leave@, info@, careers@)
+
+  <--> Twilio/Meta API (WhatsApp messages)
+
+  <--> Razorpay (payment gateway)
+
+  <--> Cloudinary (file storage)
+
+  <--> Firebase Admin (push notifications via FCM)
+
+  <--> Sentry (error tracking)
+
+
+
+admin.bfpsedu.in (Website Admin Panel)
+
+  <--> /api/v1/cms/* endpoints
+
+  <--> Manages all website content without code changes
+
+
+
+blog.bfpsedu.in (Blog)
+
+  <--> /api/v1/blog-posts (read posts)
+
+  <--> /api/v1/blog/auto-publish (automation webhook -- future connection)
+
+
+
+Mobile App (Flutter)
+
+  <--> /api/v1/* (all data via REST API)
+
+  <--> Firebase FCM (push notifications)
+
+  <--> Razorpay Flutter SDK (in-app payments)
+
+
+
+SECTION 3: USER ROLES AND RESPONSIBILITIES
+
+
+
+Role
+
+Primary Responsibilities
+
+ERP Access Level
+
+MASTER_ADMIN (superadmin@bfpsedu.in)
+
+Full system ownership. User management. Role permission editing. System config. Override all.
+
+Unrestricted -- hardcoded
+
+ADMIN
+
+Day-to-day operations. Student, fee, lead, staff management. Notifications.
+
+Broad -- except role management
+
+DIRECTOR
+
+Strategic oversight. Level 2 leave approval. Financial view.
+
+View all + leave L2 approval
+
+PRINCIPAL
+
+Academic head. Level 1 leave approval. Exam oversight. Notifications.
+
+Academic + leave L1 approval
+
+VICE_PRINCIPAL
+
+Academic support. Timetable. Exams. Limited leave view.
+
+Academic subset
+
+AC_COORDINATOR
+
+Timetable, exam schedule, marks verify, attendance view.
+
+Academic subset
+
+TEACHER
+
+Attendance mark, homework, marks entry, apply leave.
+
+Own class/subject data
+
+IT_DEPT
+
+Website CMS, gallery, blog, system settings, user accounts (not role assign).
+
+Technical modules
+
+ACCOUNTS
+
+Fee structure, collection, reports, salary, reconciliation.
+
+Finance modules only
+
+RECEPTION
+
+Lead entry, student view, walk-in fee record.
+
+CRM + limited student view
+
+MARKETING
+
+Lead reports, website admin, social media calendar, campaigns.
+
+CRM analytics + website CMS
+
+TELECALLING
+
+Lead view/update, call logs, follow-up scheduling.
+
+CRM only
+
+TRANSPORT_MANAGER
+
+Route management, vehicle, driver, student-route mapping.
+
+Transport module only
+
+HOSTEL_WARDEN
+
+Room allocation, hostel attendance, hostel student list.
+
+Hostel module only
+
+LIBRARIAN
+
+Book catalog, issue/return, overdue, fines.
+
+Library module only
+
+STUDENT/PARENT
+
+Own child's attendance, fees, results, homework, notices.
+
+Own data only
+
+
+
+SECTION 4: CORE MODULES SUMMARY
+
+
+
+Module
+
+API Prefix
+
+Brief Description
+
+Auth
+
+/auth
+
+12+1 roles, JWT, 2FA, session management
+
+Students
+
+/students
+
+Profiles, bulk import, ID cards, academic journey
+
+Attendance
+
+/attendance
+
+Period-wise, WhatsApp alerts, reports, threshold
+
+Fees
+
+/fees
+
+Structure, Razorpay, receipts, defaulters, reminders, reconciliation
+
+Exams
+
+/exams
+
+Schedule, marks, ICSE grading, report cards, ranks
+
+Staff
+
+/staff
+
+Profiles, website toggle, payroll-ready
+
+Leaves
+
+/leaves
+
+Omnichannel (email+app), dedup, 2-tier approval, auto-notify
+
+Timetable
+
+/timetable
+
+Auto-generate, conflicts, substitution workflow
+
+Lead CRM
+
+/leads
+
+Pipeline, source tracking, telecalling, WhatsApp, analytics
+
+Notifications
+
+/notifications
+
+WhatsApp+Email+SMS+Push, multi-language (EN+HI)
+
+Library
+
+/library
+
+Catalog, issue, return, fines
+
+Transport
+
+/transport
+
+Routes, vehicles, drivers, student mapping, GPS-ready
+
+Hostel
+
+/hostel
+
+Rooms, allocation, attendance, fees
+
+Homework
+
+/homework
+
+Post, view, submit, track
+
+Blog
+
+/blog-posts
+
+CMS, categories, tags, SEO, auto-publish webhook
+
+Website CMS
+
+/cms
+
+Slides, about, programs, testimonials, stats, gallery
+
+Gallery
+
+/gallery
+
+Event folders, Cloudinary, website display
+
+Careers
+
+/careers
+
+Job postings, applications, email+form dedup, resume store
+
+Contact
+
+/contact
+
+Enquiries, email+form dedup, reply, track
+
+Analytics
+
+/analytics
+
+Attendance trends, fee charts, lead funnel, exam performance
+
+Export/Import
+
+/export|import
+
+PDF, XLSX, DOCX, CSV for all modules
+
+Payments
+
+/payments
+
+Razorpay orders, verification, webhook, reconciliation, refunds
+
+Audit Log
+
+/audit
+
+All actions logged with user, time, before/after state
+
+Visitor
+
+/visitors
+
+Log, notify, visitor pass PDF
+
+System Health
+
+/health
+
+All services ping status
+
+
+
+SECTION 5: EMAIL INTEGRATION SUMMARY
+
+
+
+FINALIZED EMAILS (hardcoded in system):
+
+Email
+
+Role in System
+
+Direction
+
+superadmin@bfpsedu.in
+
+Master Admin ERP login. Hardcoded in seed.
+
+Bidirectional
+
+noreply@bfpsedu.in
+
+All automated outgoing emails. SMTP only.
+
+Outgoing only
+
+leave@bfpsedu.in
+
+Teacher leave requests. IMAP read every 5 min.
+
+Incoming + auto-reply
+
+careers@bfpsedu.in
+
+Job applications via email. IMAP read every 10 min.
+
+Incoming + auto-reply
+
+info@bfpsedu.in
+
+General contact emails. IMAP read every 10 min.
+
+Incoming + auto-reply
+
+admin@bfpsedu.in
+
+Admin digest notifications. System sends here.
+
+Incoming (you read it)
+
+system@bfpsedu.in
+
+CI/CD and monitoring alerts.
+
+Incoming (you read it)
+
+
+
+ALL OTHER EMAILS: Not finalized. Added by Master Admin via ERP Settings -> User Management when staff is hired.
+
+
+
+SECTION 6: BLOG AUTOMATION HOOK (FUTURE)
+
+
+
+The blog at blog.bfpsedu.in has an auto-publish webhook ready from day 1.
+
+When external automation tool is connected, it can POST to:
+
+POST /api/v1/blog/auto-publish
+
+Header: X-Blog-Automation-Key: [key from env]
+
+Body: { title, content, category, tags, featuredImage, seoTitle, seoDescription }
+
+Action: Post is created and immediately published on blog.bfpsedu.in
+
+Connection to existing automation tool is a POST-LAUNCH task. Endpoint ready on launch.
+
+
+
+SECTION 7: PAYMENT GATEWAY INTEGRATION
+
+
+
+Razorpay is integrated from Day 1. Not deferred.
+
+Fee collection: erp.bfpsedu.in -> Razorpay order -> parent pays -> webhook -> DB updated
+
+Mobile app: Razorpay Flutter SDK for in-app payments by parents
+
+Security: Card data never touches BFPS servers. PCI-DSS compliant via Razorpay.
+
+Webhook: Signature verified on every payment callback
+
+Reconciliation: Daily at 2am -- Razorpay vs DB cross-check. Alert on discrepancy.
+
+
+
+END OF DOCUMENT
+
+FINAL_09 Ultimate Master Doc v2.0 | PROMPT FOLDER | April 2026 | bfpsedu.in
+
+Baba Farid Public School | Full Ecosystem | erp + website + blog + app | April 2026

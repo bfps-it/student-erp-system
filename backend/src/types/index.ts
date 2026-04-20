@@ -151,7 +151,7 @@ export interface CloudinaryUploadResult {
 
 export interface CloudinaryUploadOptions {
   folder?: string;
-  resource_type?: string;
+  resource_type?: 'auto' | 'image' | 'video' | 'raw';
   quality?: string;
   transformation?: Record<string, unknown>[];
 }

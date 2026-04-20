@@ -1,7 +1,18 @@
 import { Router } from 'express';
-import { createStudent, getStudentById, getAllStudents, updateStudent } from '../controllers/student.controller';
-import auth from '../middleware/auth';
+
+import { 
+  createStudent, 
+  getStudentById, 
+  getAllStudents, 
+  updateStudent,
+  importStudents,
+  generateIdCard,
+  getStudentJourney,
+  exportStudentJourneyPdf
+} from '../controllers/student.controller';
+import { authenticate } from '../middleware/auth';
 import { validate } from '../middleware/validate';
+import { upload } from '../middleware/upload';
 import { createStudentSchema, updateStudentSchema } from '../validators/student.validator';
 
 const router = Router();
@@ -12,12 +23,11 @@ const router = Router();
  */
 
 // All routes require authentication
-router.use(auth());
+router.use(authenticate);
 
 // Admission / Create Student 
-// Depending on business logic, this could be limited to MASTER_ADMIN and ADMIN
 router.post(
-  '/', // Must be an admin to admit a new student directly (bypass or specific RBAC could be applied)
+  '/',
   validate(createStudentSchema),
   createStudent
 );
@@ -26,6 +36,13 @@ router.post(
 router.get(
   '/',
   getAllStudents
+);
+
+// Bulk import students via CSV/Excel
+router.post(
+  '/import',
+  upload.single('file'),
+  importStudents
 );
 
 // Get student by ID
@@ -39,6 +56,24 @@ router.put(
   '/:id',
   validate(updateStudentSchema),
   updateStudent
+);
+
+// Download Student ID Card PDF
+router.get(
+  '/:id/id-card',
+  generateIdCard
+);
+
+// Academic Journey Tracker (JSON)
+router.get(
+  '/:id/journey',
+  getStudentJourney
+);
+
+// Academic Journey Tracker (PDF export with school letterhead)
+router.get(
+  '/:id/journey/pdf',
+  exportStudentJourneyPdf
 );
 
 export default router;

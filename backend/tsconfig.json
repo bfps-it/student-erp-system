@@ -31,6 +31,6 @@
     "checkJs": false,
     "types": ["node", "jest"]
   },
-  "include": ["src/**/*.ts", "prisma/**/*.ts"],
+  "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "__tests__", "**/*.test.ts", "**/*.spec.ts"]
 }

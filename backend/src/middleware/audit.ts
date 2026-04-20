@@ -1,5 +1,7 @@
 import { Response, NextFunction } from 'express';
 
+import { Prisma } from '@prisma/client';
+
 import { prisma } from '../config/database';
 import logger from '../utils/logger';
 import type { AuthRequest } from '../types';
@@ -42,8 +44,8 @@ const audit = (module: string) => {
                 module,
                 action: `${req.method} ${req.path}`,
                 entityId: typeof entityId === 'string' ? entityId : null,
-                before: req._auditBefore || null,
-                after: (responseData?.data as Record<string, unknown>) || null,
+                before: (req._auditBefore as Prisma.InputJsonValue) || Prisma.DbNull,
+                after: (responseData?.data as Prisma.InputJsonValue) || Prisma.DbNull,
                 ipAddress: req.ip || 'unknown',
                 userAgent: req.headers['user-agent'] || null,
               },

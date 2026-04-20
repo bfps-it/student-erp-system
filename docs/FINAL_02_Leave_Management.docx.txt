@@ -1,0 +1,1057 @@
+BFPS ERP -- LEAVE MANAGEMENT FEATURE SPECIFICATION -- ADDENDUM v1.0 -- ANTI-GRAVITY DOCUMENT
+
+BFPS ERP ECOSYSTEM
+
+FEATURE ADDENDUM: UNIFIED OMNICHANNEL
+
+LEAVE MANAGEMENT SYSTEM
+
+
+
+Document Type: Anti-Gravity Feature Specification Addendum
+
+Add this document to: BabaFaridPublicSchool/Prompt/
+
+Version: 1.0 | April 2026 | Builds on: Master Doc v2.0 Section 3
+
+INSTRUCTION TO ANTI-GRAVITY: Implement this feature as specified. It replaces the basic leave module described in the Master Document.
+
+SECTION 1: FEATURE OVERVIEW
+
+
+
+Feature Name: Unified Omnichannel Leave Management System
+
+Module Location in ERP: Main navigation --> Leaves Panel
+
+Affected Roles: Teacher (submit), Principal (Level 1 approve), Director (Level 2 approve),
+
+                Master Admin and Admin (full view and override)
+
+Replaces: The basic leave email module described in Master Document Section 3.2
+
+
+
+CORE CONCEPT:
+
+A teacher can submit a leave request via TWO channels:
+
+  Channel 1: Send email from their official bfpsedu.in email to leave@bfpsedu.in
+
+  Channel 2: Submit directly from the mobile app
+
+Both channels create the SAME type of object in the ERP: a Leave Request Ticket.
+
+If a teacher uses BOTH channels for the same leave (duplicate), the system detects
+
+and merges them into ONE ticket. Only ONE ticket reaches the approval pipeline.
+
+The ticket then passes through TWO levels of approval: Principal --> Director.
+
+After Director approves, the teacher gets notified via email AND push notification.
+
+
+
+SECTION 2: PREREQUISITES FOR ANTI-GRAVITY
+
+
+
+Before implementing this feature, verify these conditions are met:
+
+
+
+PREREQUISITE 1: leave@bfpsedu.in email account exists on Serverbyte
+
+Verify: Email account leave@bfpsedu.in is created and active
+
+Verify: IMAP credentials are stored in .env file
+
+Required .env variables:
+
+  LEAVE_EMAIL_USER=leave@bfpsedu.in
+
+  LEAVE_EMAIL_PASS=[serverbyte_password]
+
+  LEAVE_IMAP_HOST=[serverbyte_imap_host]
+
+  LEAVE_IMAP_PORT=993
+
+
+
+PREREQUISITE 2: All teacher accounts exist with official bfpsedu.in emails
+
+The ERP must recognize sender email to link to staff record.
+
+Emails from unrecognized addresses will be rejected with an auto-reply.
+
+
+
+PREREQUISITE 3: Mobile app is linked to teacher official email
+
+During teacher app login, they log in using firstname.lastname@bfpsedu.in
+
+This links their app identity to their staff record in the ERP database
+
+
+
+PREREQUISITE 4: Principal and Director accounts exist in ERP
+
+Both must have ERP accounts with correct roles assigned by Master Admin
+
+Both must have the mobile app installed for push notifications
+
+
+
+SECTION 3: DATABASE SCHEMA ADDITIONS
+
+
+
+Add or replace the LeaveRequest model in Prisma schema with the following:
+
+
+
+model LeaveRequest {
+
+  id               Int                @id @default(autoincrement())
+
+  ticketId         String             @unique @default(cuid()) -- Human-readable ticket ID
+
+  staffId          Int
+
+  staff            Staff              @relation(fields: [staffId], references: [id])
+
+  leaveType        LeaveType          -- CASUAL | MEDICAL | EARNED | EMERGENCY | OTHER
+
+  fromDate         DateTime
+
+  toDate           DateTime
+
+  totalDays        Int                -- Auto-calculated
+
+  reason           String             @db.Text
+
+  source           LeaveSource        -- EMAIL | APP | MERGED
+
+  sourceEmail      String?            -- Raw email subject if source=EMAIL or MERGED
+
+  sourceAppId      String?            -- App submission ID if source=APP or MERGED
+
+  status           LeaveStatus        -- PENDING_PRINCIPAL | PENDING_DIRECTOR | APPROVED | REJECTED | CANCELLED
+
+  principalId      Int?               -- Staff ID of principal who reviewed
+
+  principalAction  ApprovalAction?    -- APPROVED | REJECTED
+
+  principalNote    String?
+
+  principalAt      DateTime?
+
+  directorId       Int?               -- Staff ID of director who reviewed
+
+  directorAction   ApprovalAction?    -- APPROVED | REJECTED
+
+  directorNote     String?
+
+  directorAt       DateTime?
+
+  isDuplicate      Boolean            @default(false) -- True if this was the secondary duplicate (cancelled)
+
+  mergedIntoId     Int?               -- If isDuplicate=true, points to surviving ticket ID
+
+  autoReplyEmailSent Boolean          @default(false)
+
+  pushNotifSent    Boolean            @default(false)
+
+  createdAt        DateTime           @default(now())
+
+  updatedAt        DateTime           @updatedAt
+
+}
+
+
+
+enum LeaveType    { CASUAL MEDICAL EARNED EMERGENCY OTHER }
+
+enum LeaveSource  { EMAIL APP MERGED }
+
+enum LeaveStatus  { PENDING_PRINCIPAL PENDING_DIRECTOR APPROVED REJECTED CANCELLED }
+
+enum ApprovalAction { APPROVED REJECTED }
+
+
+
+Add migration: npx prisma migrate dev --name unified-leave-management
+
+
+
+SECTION 4: COMPLETE WORKFLOW SPECIFICATION
+
+
+
+4.1 Channel 1: Email Submission Workflow
+
+
+
+STEP 1: Teacher sends email
+
+  From:    firstname.lastname@bfpsedu.in
+
+  To:      leave@bfpsedu.in
+
+  Subject: LEAVE REQUEST | [Name] | [Date From] to [Date To]
+
+  Body:    Reason for leave (free text)
+
+
+
+STEP 2: IMAP Cron Job (runs every 5 minutes)
+
+  Service: leave.imap.service.js
+
+  Action:  Connect to leave@bfpsedu.in via IMAP
+
+  Action:  Fetch all unread emails
+
+  Action:  For each email:
+
+           a. Extract sender email
+
+           b. Query Staff table: does this email match a staff member?
+
+           c. If NO match: send auto-reply 'Unrecognized email. Use your official bfpsedu.in email.'
+
+              Mark email as read. Stop processing.
+
+           d. If YES match: extract dates and reason from subject and body
+
+           e. Run DUPLICATE DETECTION (Section 4.3)
+
+           f. If not duplicate: create LeaveRequest ticket with source=EMAIL
+
+           g. Mark email as read
+
+
+
+STEP 3: Ticket created with status: PENDING_PRINCIPAL
+
+  Action: Push notification sent to Principal's app
+
+  Action: Email sent to principal@bfpsedu.in notifying of new leave request
+
+
+
+4.2 Channel 2: Mobile App Submission Workflow
+
+
+
+STEP 1: Teacher opens mobile app
+
+  Navigation: App --> My Leave --> Apply for Leave
+
+  Form fields:
+
+    - Leave Type: [dropdown: Casual / Medical / Earned / Emergency / Other]
+
+    - From Date: [date picker]
+
+    - To Date: [date picker]
+
+    - Total Days: [auto-calculated, displayed, read-only]
+
+    - Reason: [text area]
+
+    - Attach Document: [optional -- medical certificate, etc.]
+
+
+
+STEP 2: Teacher taps 'Submit Leave Request'
+
+  Action: POST /api/leaves/apply
+
+  Body:   { staffId, leaveType, fromDate, toDate, reason, attachmentUrl }
+
+
+
+STEP 3: Backend receives request
+
+  Action: Run DUPLICATE DETECTION (Section 4.3)
+
+  If not duplicate: create LeaveRequest ticket with source=APP
+
+  Return: { ticketId, status: 'PENDING_PRINCIPAL', message: 'Leave request submitted' }
+
+
+
+STEP 4: Teacher sees confirmation screen in app
+
+  Display: Ticket ID, dates, status badge 'Pending Principal'
+
+
+
+STEP 5: Ticket created with status: PENDING_PRINCIPAL
+
+  Action: Push notification sent to Principal's app
+
+  Action: Email sent to principal@bfpsedu.in notifying of new leave request
+
+
+
+4.3 Duplicate Detection and Merge Logic (Critical)
+
+
+
+This runs every time a new leave request arrives from ANY channel.
+
+
+
+DUPLICATE DETECTION ALGORITHM:
+
+  Input: staffId, fromDate, toDate
+
+  Query: SELECT * FROM LeaveRequest
+
+         WHERE staffId = [staffId]
+
+         AND isDuplicate = false
+
+         AND status NOT IN ('REJECTED', 'CANCELLED')
+
+         AND (
+
+               (fromDate <= [newFromDate] AND toDate >= [newFromDate])
+
+             OR
+
+               (fromDate <= [newToDate] AND toDate >= [newToDate])
+
+             OR
+
+               (fromDate >= [newFromDate] AND toDate <= [newToDate])
+
+             )
+
+
+
+RESULT A: No overlapping ticket found
+
+  Action: Create new ticket normally. source = EMAIL or APP.
+
+
+
+RESULT B: Overlapping ticket found (DUPLICATE DETECTED)
+
+  Determine which is PRIMARY and which is SECONDARY:
+
+    - PRIMARY: The ticket that was created FIRST (earlier createdAt timestamp)
+
+    - SECONDARY: The newly incoming request
+
+
+
+  Action on PRIMARY ticket:
+
+    - Update source to MERGED (was EMAIL or APP, now MERGED)
+
+    - Merge any additional info from SECONDARY into PRIMARY if richer
+
+    - Keep PRIMARY ticket in the approval pipeline unchanged
+
+    - Add log entry: 'Duplicate detected and merged from [EMAIL/APP] at [timestamp]'
+
+
+
+  Action on SECONDARY request:
+
+    - Create ticket record with isDuplicate = true
+
+    - Set mergedIntoId = PRIMARY ticket ID
+
+    - Set status = CANCELLED
+
+    - Do NOT send to approval pipeline
+
+    - Do NOT notify Principal
+
+
+
+  Send auto-reply to teacher:
+
+    Via email: 'Your leave request was received. A request for overlapping dates
+
+               already exists (Ticket ID: [primaryTicketId]). Your duplicate request
+
+               has been merged. You can track status using the original Ticket ID.'
+
+    Via push notification: same message summary
+
+
+
+4.4 Level 1 Approval: Principal
+
+
+
+TRIGGER: New ticket arrives in Leaves Panel with status=PENDING_PRINCIPAL
+
+
+
+Principal sees in ERP dashboard and mobile app:
+
+  - Leaves Panel counter badge: 'X Pending'
+
+  - Ticket details: Teacher name, dates, type, reason, source tag (EMAIL/APP/MERGED)
+
+
+
+Principal has two actions:
+
+  ACTION A: APPROVE
+
+    - Principal clicks 'Approve' button
+
+    - Optional: add approval note
+
+    - System records: principalId, principalAction=APPROVED, principalAt=now()
+
+    - Ticket status changes to: PENDING_DIRECTOR
+
+    - Push notification sent to Director's app
+
+    - Email sent to director@bfpsedu.in: 'Leave request approved by Principal, awaiting your review'
+
+    - Teacher NOT notified yet (waiting for final Director approval)
+
+
+
+  ACTION B: REJECT
+
+    - Principal clicks 'Reject' button
+
+    - MANDATORY: Principal must enter rejection reason
+
+    - System records: principalId, principalAction=REJECTED, principalAt=now()
+
+    - Ticket status changes to: REJECTED
+
+    - Auto-email sent to teacher: leave request rejected, reason provided
+
+    - Push notification sent to teacher app: leave request rejected
+
+    - Ticket does NOT go to Director
+
+
+
+4.5 Level 2 Approval: Director
+
+
+
+TRIGGER: Ticket status changes to PENDING_DIRECTOR after Principal approval
+
+
+
+Director sees in ERP dashboard and mobile app:
+
+  - Leaves Panel with full ticket details including Principal's approval note
+
+  - Source tag still visible: EMAIL / APP / MERGED
+
+
+
+Director has two actions:
+
+  ACTION A: FINAL APPROVE
+
+    - Director clicks 'Approve' button
+
+    - Optional: add approval note
+
+    - System records: directorId, directorAction=APPROVED, directorAt=now()
+
+    - Ticket status changes to: APPROVED
+
+    - AUTOMATED RESOLUTION TRIGGERS (Section 4.6)
+
+
+
+  ACTION B: REJECT (Override)
+
+    - Director can reject even after Principal approved
+
+    - MANDATORY: Director must enter rejection reason
+
+    - System records: directorId, directorAction=REJECTED, directorAt=now()
+
+    - Ticket status changes to: REJECTED
+
+    - Auto-email to teacher: rejected at Director level, reason provided
+
+    - Push notification to teacher
+
+
+
+4.6 Automated Resolution After Final Director Approval
+
+
+
+TRIGGER: directorAction = APPROVED
+
+
+
+ACTION 1: Update ticket status to APPROVED in database
+
+ACTION 2: Send auto-reply email to teacher
+
+  From:    noreply@bfpsedu.in
+
+  To:      teacher official bfpsedu.in email
+
+  Subject: Leave Sanctioned | Ticket [ticketId] | [fromDate] to [toDate]
+
+  Body:    Your leave request has been sanctioned.
+
+           Details: [Leave Type] from [fromDate] to [toDate] ([totalDays] days)
+
+           Approved by: Principal on [principalAt] | Director on [directorAt]
+
+           Ticket ID: [ticketId]
+
+           Please ensure your classes are covered during your absence.
+
+
+
+ACTION 3: Send push notification to teacher mobile app
+
+  Title: 'Leave Sanctioned'
+
+  Body:  'Your leave from [fromDate] to [toDate] has been approved by the Director.'
+
+
+
+ACTION 4: Update teacher attendance record
+
+  Mark teacher as ON_LEAVE for all dates in [fromDate] to [toDate]
+
+  This triggers the Timetable module's substitution workflow automatically
+
+
+
+ACTION 5: Notify Admin panel
+
+  ERP admin dashboard shows: 'Leave Sanctioned for [Teacher Name] [dates]'
+
+  Admin can view full ticket in Leaves Panel
+
+
+
+ACTION 6: Set autoReplyEmailSent = true and pushNotifSent = true on ticket record
+
+
+
+SECTION 5: API ENDPOINTS FOR LEAVE MODULE
+
+
+
+
+
+POST   /api/leaves/apply
+
+  Auth:    Teacher role
+
+  Body:    { leaveType, fromDate, toDate, reason, attachmentUrl? }
+
+  Returns: { ticketId, status, message, isDuplicate, mergedIntoId? }
+
+
+
+GET    /api/leaves
+
+  Auth:    Principal, Director, Admin, Master Admin
+
+  Query:   status, staffId, dateFrom, dateTo, source
+
+  Returns: Paginated list of leave tickets
+
+
+
+GET    /api/leaves/my
+
+  Auth:    Teacher (own records only)
+
+  Returns: All leave tickets submitted by logged-in teacher
+
+
+
+GET    /api/leaves/:id
+
+  Auth:    Principal, Director, Admin, Master Admin, Owner teacher
+
+  Returns: Full ticket details including timeline of approvals
+
+
+
+PUT    /api/leaves/:id/principal-action
+
+  Auth:    Principal role ONLY
+
+  Body:    { action: 'APPROVED' | 'REJECTED', note? }
+
+  Returns: Updated ticket
+
+
+
+PUT    /api/leaves/:id/director-action
+
+  Auth:    Director role ONLY
+
+  Body:    { action: 'APPROVED' | 'REJECTED', note? }
+
+  Returns: Updated ticket, triggers automated resolution if APPROVED
+
+
+
+DELETE /api/leaves/:id/cancel
+
+  Auth:    Teacher (own ticket, only if status=PENDING_PRINCIPAL)
+
+  Returns: Ticket with status=CANCELLED
+
+
+
+GET    /api/leaves/stats
+
+  Auth:    Admin, Master Admin
+
+  Returns: { pending_principal, pending_director, approved_this_month, rejected_this_month }
+
+
+
+SECTION 6: IMAP SERVICE IMPLEMENTATION
+
+
+
+File to create: /backend/src/services/leave.imap.service.js
+
+
+
+USE LIBRARY: imap-simple (npm package)
+
+INSTALL: npm install imap-simple mailparser
+
+
+
+CRON SCHEDULE: Every 5 minutes
+
+FILE: /backend/src/cron/leave.email.cron.js
+
+SCHEDULE: '*/5 * * * *'
+
+
+
+IMAP CONNECTION CONFIG:
+
+  host:     process.env.LEAVE_IMAP_HOST
+
+  port:     993
+
+  tls:      true
+
+  authTimeout: 10000
+
+  user:     process.env.LEAVE_EMAIL_USER
+
+  password: process.env.LEAVE_EMAIL_PASS
+
+
+
+PARSING LOGIC:
+
+  1. Fetch all UNSEEN emails in INBOX
+
+  2. For each email, parse with mailparser:
+
+     - senderEmail: from.value[0].address
+
+     - subject: subject field
+
+     - body: text field (plain text)
+
+  3. Extract dates from subject using regex:
+
+     Pattern: /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}).*to.*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i
+
+  4. If date extraction fails, use NLP fallback:
+
+     Search body text for date patterns
+
+  5. If still no dates found:
+
+     Auto-reply: 'Could not parse dates. Please use subject format:
+
+     LEAVE REQUEST | [Name] | DD/MM/YYYY to DD/MM/YYYY'
+
+  6. Extract leaveType from subject keywords:
+
+     'medical' / 'sick' --> MEDICAL
+
+     'casual' --> CASUAL
+
+     'emergency' --> EMERGENCY
+
+     default --> OTHER (admin can correct from panel)
+
+  7. Mark email as READ after processing
+
+
+
+SECTION 7: UI SPECIFICATION FOR LEAVES PANEL
+
+
+
+7.1 Leaves Panel (Main Dashboard)
+
+
+
+ROUTE: /erp/leaves
+
+ACCESS: Principal, Director, Admin, Master Admin
+
+
+
+LAYOUT:
+
+  Top row: Stats cards
+
+    [Pending Principal: X] [Pending Director: X] [Approved This Month: X] [Rejected: X]
+
+
+
+  Filter bar:
+
+    - Status dropdown: All | Pending Principal | Pending Director | Approved | Rejected | Cancelled
+
+    - Source dropdown: All | Email | App | Merged
+
+    - Date range picker
+
+    - Search by teacher name
+
+
+
+  Ticket list (table view):
+
+    Columns: Ticket ID | Teacher Name | Leave Type | From | To | Days | Source Tag | Status Badge | Actions
+
+
+
+  SOURCE TAG (visual indicator, shown as a small pill/badge):
+
+    EMAIL  --> pill with label 'Email'
+
+    APP    --> pill with label 'App'
+
+    MERGED --> pill with label 'Merged' (indicates duplicate was detected and merged)
+
+
+
+  STATUS BADGE colors:
+
+    PENDING_PRINCIPAL --> yellow badge: 'Pending Principal'
+
+    PENDING_DIRECTOR  --> orange badge: 'Pending Director'
+
+    APPROVED          --> green badge: 'Approved'
+
+    REJECTED          --> red badge: 'Rejected'
+
+    CANCELLED         --> gray badge: 'Cancelled'
+
+
+
+7.2 Ticket Detail View
+
+
+
+ROUTE: /erp/leaves/:id
+
+
+
+SECTIONS:
+
+  1. Header: Ticket ID | Source Tag | Status Badge
+
+  2. Teacher Info: Name | Department | Email | Photo
+
+  3. Leave Details: Type | From | To | Total Days | Reason | Attachment link
+
+  4. Approval Timeline:
+
+     [Principal]: [Pending / Approved on DATE / Rejected on DATE] -- Note if any
+
+     [Director]:  [Waiting / Approved on DATE / Rejected on DATE] -- Note if any
+
+  5. Action buttons (shown based on logged-in role and current status):
+
+     Principal sees: [Approve] [Reject] buttons when status=PENDING_PRINCIPAL
+
+     Director sees:  [Approve] [Reject] buttons when status=PENDING_DIRECTOR
+
+     Admin sees:     Read-only view of all tickets
+
+     Master Admin:   Can override any status at any stage
+
+
+
+7.3 Teacher View (Mobile App and ERP)
+
+
+
+ROUTE (Mobile): App --> My Leaves
+
+ROUTE (ERP):    /erp/my-leaves (for teachers who access ERP)
+
+
+
+DISPLAY:
+
+  List of own leave tickets with:
+
+  - Ticket ID
+
+  - Dates and days
+
+  - Current status badge
+
+  - Source tag (so teacher can see if their email and app request were merged)
+
+  - Cancel button (only for tickets in PENDING_PRINCIPAL status)
+
+
+
+APPLY LEAVE BUTTON:
+
+  Opens form: Leave Type | From Date | To Date | Reason | Attach Document (optional)
+
+  Total days auto-calculated on date selection
+
+
+
+SECTION 8: UNIT TESTS FOR LEAVE MODULE
+
+
+
+File: /backend/src/__tests__/leave.test.js
+
+
+
+TEST L.1: Valid email from known teacher creates PENDING_PRINCIPAL ticket
+
+TEST L.2: Email from unknown email gets auto-reply and no ticket created
+
+TEST L.3: App submission creates PENDING_PRINCIPAL ticket with source=APP
+
+DUPLICATE TESTS:
+
+TEST L.4: App submission for same dates as existing EMAIL ticket --> MERGED
+
+  Assert: Only 1 active ticket in pipeline. Secondary ticket has isDuplicate=true.
+
+TEST L.5: Email submission for same dates as existing APP ticket --> MERGED
+
+  Assert: Primary ticket source updated to MERGED. Secondary CANCELLED.
+
+TEST L.6: Two app submissions for different date ranges --> 2 separate tickets (not merged)
+
+TEST L.7: App submission for partially overlapping dates --> treated as duplicate, MERGED
+
+APPROVAL TESTS:
+
+TEST L.8: Principal approves --> status changes to PENDING_DIRECTOR
+
+  Assert: Director receives push notification
+
+TEST L.9: Teacher role cannot call principal-action endpoint --> 403
+
+TEST L.10: Director approves --> status changes to APPROVED
+
+  Assert: Auto-reply email triggered (mock SMTP verified)
+
+  Assert: Push notification sent to teacher (mock FCM verified)
+
+  Assert: Teacher attendance marked ON_LEAVE for approved dates
+
+TEST L.11: Principal rejects --> status REJECTED, teacher notified, Director NOT notified
+
+TEST L.12: Director rejects after Principal approval --> status REJECTED, teacher notified
+
+TEST L.13: Teacher can cancel own ticket only when status=PENDING_PRINCIPAL
+
+TEST L.14: Teacher cannot cancel ticket in PENDING_DIRECTOR or APPROVED status --> 400
+
+IMAP TESTS:
+
+TEST L.15: IMAP cron parses subject 'LEAVE REQUEST | Ram | 15/05/2026 to 17/05/2026' correctly
+
+TEST L.16: IMAP cron marks email as READ after processing
+
+TEST L.17: Unparseable date in email triggers auto-reply with format instructions
+
+
+
+SECTION 9: ANTI-GRAVITY TASK LIST FOR THIS FEATURE
+
+
+
+These tasks INSERT INTO the main task list from Master Doc v2.0.
+
+They expand Task 12 (Staff and Leave Module Backend) and add new frontend tasks.
+
+
+
+Backend Tasks (Replace/Expand Master Doc Task 12)
+
+
+
+12.1  Install packages: npm install imap-simple mailparser node-cron
+
+      --> PUSH | LINT | PR | COPILOT | MERGE
+
+12.2  Create /backend/prisma/migrations/unified_leave_schema.sql
+
+      Add LeaveType, LeaveSource, LeaveStatus, ApprovalAction enums
+
+      Add full LeaveRequest model with all fields from Section 3
+
+      Run: npx prisma migrate dev --name unified-leave-management
+
+      --> PUSH | LINT | commit: 'db: unified leave management schema migration'
+
+12.3  Create /backend/src/services/leave.imap.service.js
+
+      Implement: connectIMAP, fetchUnseenEmails, parseLeaveEmail, markAsRead
+
+      Implement: auto-reply for unrecognized sender, auto-reply for bad format
+
+      --> PUSH | LINT | TESTS | PR | COPILOT | MERGE
+
+12.4  Create /backend/src/services/leave.duplicate.service.js
+
+      Implement: detectDuplicate, mergeDuplicate, cancelSecondary
+
+      --> PUSH | LINT | TESTS | PR | COPILOT | MERGE
+
+12.5  Create /backend/src/services/leave.notification.service.js
+
+      Implement: notifyPrincipal, notifyDirector, notifyTeacherApproved,
+
+                 notifyTeacherRejected, sendMergeConfirmation
+
+      Each notification: email (Nodemailer) + push (Firebase FCM)
+
+      --> PUSH | LINT | TESTS | PR | COPILOT | MERGE
+
+12.6  Create /backend/src/cron/leave.email.cron.js
+
+      Schedule: every 5 minutes using node-cron
+
+      Calls: imap.service to fetch, parse, deduplicate, create tickets
+
+      --> PUSH | LINT | TESTS | PR | COPILOT | MERGE
+
+12.7  Create /backend/src/controllers/leave.controller.js
+
+      Implement: applyLeave, getLeaves, getMyLeaves, getLeaveById
+
+                 principalAction, directorAction, cancelLeave, getLeaveStats
+
+      --> PUSH | LINT | TESTS | PR | COPILOT | MERGE
+
+12.8  Create /backend/src/routes/leave.routes.js
+
+      Define all endpoints from Section 5
+
+      Apply role middleware: principalAction = Principal only, directorAction = Director only
+
+      --> PUSH | LINT | PR | COPILOT | MERGE
+
+12.9  Create /backend/src/__tests__/leave.test.js
+
+      Implement all 17 tests from Section 8
+
+      --> PUSH | LINT | PLAYWRIGHT | PR | COPILOT | MERGE
+
+
+
+Frontend Tasks (ERP Leave Panel)
+
+
+
+12.10 Create /frontend/src/app/(erp)/leaves/page.tsx
+
+      Implement: stats cards, filter bar, ticket list table with source tags and status badges
+
+      --> PUSH | LINT | PLAYWRIGHT | PR | COPILOT | MERGE
+
+12.11 Create /frontend/src/app/(erp)/leaves/[id]/page.tsx
+
+      Implement: ticket detail view, approval timeline, conditional action buttons per role
+
+      --> PUSH | LINT | PLAYWRIGHT | PR | COPILOT | MERGE
+
+12.12 Create /frontend/src/app/(erp)/my-leaves/page.tsx
+
+      Implement: teacher's own leave list, apply leave button, cancel button
+
+      --> PUSH | LINT | PLAYWRIGHT | PR | COPILOT | MERGE
+
+12.13 Create /frontend/src/components/leaves/ApplyLeaveForm.tsx
+
+      Form: leave type, from date, to date, auto-calculated days, reason, attach doc
+
+      --> PUSH | LINT | PLAYWRIGHT | PR | COPILOT | MERGE
+
+12.14 Create /frontend/src/components/leaves/ApprovalActionPanel.tsx
+
+      Buttons: Approve + Reject with mandatory note for rejection
+
+      Shown conditionally: Principal sees for PENDING_PRINCIPAL, Director for PENDING_DIRECTOR
+
+      --> PUSH | LINT | PLAYWRIGHT | PR | COPILOT | MERGE
+
+
+
+Mobile App Tasks
+
+
+
+12.15 Create Flutter screen: lib/screens/leaves/my_leaves_screen.dart
+
+      List own leave tickets with status badges and source tags
+
+      --> PUSH | LINT | PR | COPILOT | MERGE
+
+12.16 Create Flutter screen: lib/screens/leaves/apply_leave_screen.dart
+
+      Form with date pickers, leave type dropdown, reason field, submit
+
+      On submit: POST /api/leaves/apply
+
+      --> PUSH | LINT | PR | COPILOT | MERGE
+
+12.17 Create Flutter screen: lib/screens/leaves/leaves_panel_screen.dart
+
+      For Principal and Director: ticket list with filter, tap to open detail
+
+      --> PUSH | LINT | PR | COPILOT | MERGE
+
+12.18 Create Flutter screen: lib/screens/leaves/leave_detail_screen.dart
+
+      Full ticket detail, approval timeline, approve/reject buttons (role-based)
+
+      --> PUSH | LINT | PR | COPILOT | MERGE
+
+
+
+END OF DOCUMENT
+
+BFPS Leave Management Feature Addendum v1.0 | Place in: BabaFaridPublicSchool/Prompt/
+
+Baba Farid Public School | erp.bfpsedu.in | leave@bfpsedu.in | GitHub: rishikkumar84a

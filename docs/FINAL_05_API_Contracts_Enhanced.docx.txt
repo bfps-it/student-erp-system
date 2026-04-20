@@ -1,0 +1,735 @@
+FINAL_05 -- BFPS API CONTRACTS ENHANCED v2.0 -- COMPLETE REST API SPEC -- PROMPT FOLDER
+
+BABA FARID PUBLIC SCHOOL (BFPS)
+
+Kilianwali, Punjab | ICSE/ISC Board | PU170 | bfpsedu.in
+
+
+
+API CONTRACTS
+
+Complete REST API Specification -- All Endpoints
+
+FINAL_05 v2.0 | April 2026 | PROMPT FOLDER DOCUMENT
+
+
+
+All routes prefixed /api/v1/. Auth: JWT Bearer token unless marked public. Supersedes BFPS_API_Contracts.docx.
+
+SECTION 1: GLOBAL STANDARDS
+
+
+
+1.1 Request/Response Format
+
+Base URL: https://api.bfpsedu.in/api/v1/
+
+Content-Type: application/json (all requests)
+
+Auth header: Authorization: Bearer [JWT_ACCESS_TOKEN]
+
+
+
+SUCCESS RESPONSE:
+
+{ success: true, data: {...}, message: 'string', pagination?: { page, limit, total, totalPages } }
+
+
+
+ERROR RESPONSE:
+
+{ success: false, error: { code: 'ERROR_CODE', message: 'Human readable', details?: [...] } }
+
+
+
+1.2 HTTP Status Codes Used
+
+Code
+
+Meaning
+
+When Used
+
+200
+
+OK
+
+Successful GET, PUT, DELETE
+
+201
+
+Created
+
+Successful POST (resource created)
+
+400
+
+Bad Request
+
+Validation error, malformed request
+
+401
+
+Unauthorized
+
+Missing/expired/invalid JWT token
+
+403
+
+Forbidden
+
+Valid token but insufficient role/permissions
+
+404
+
+Not Found
+
+Resource does not exist
+
+409
+
+Conflict
+
+Duplicate resource (e.g. attendance already marked)
+
+422
+
+Unprocessable
+
+Data valid but business logic rejected it
+
+429
+
+Too Many Requests
+
+Rate limit exceeded
+
+500
+
+Internal Server Error
+
+Unhandled server error (logged to Sentry)
+
+
+
+1.3 Rate Limits
+
+Endpoint Category
+
+Limit
+
+Window
+
+Public (contact, leads, careers)
+
+10 requests
+
+Per minute per IP
+
+Auth endpoints
+
+5 requests
+
+Per 15 minutes per IP
+
+Authenticated users
+
+200 requests
+
+Per minute per user
+
+File upload
+
+20 uploads
+
+Per hour per user
+
+Export
+
+5 exports
+
+Per minute per user
+
+Blog auto-publish webhook
+
+10 posts
+
+Per hour per API key
+
+
+
+SECTION 2: AUTH ENDPOINTS
+
+
+
+POST   /api/v1/auth/login
+
+  Auth: Public
+
+  Body: { email: string, password: string, totpCode?: string }
+
+  Returns: { accessToken, refreshToken, role, user: { id, name, email, photo } }
+
+  Errors: 401 (wrong creds), 423 (account locked), 403 (2FA required)
+
+
+
+POST   /api/v1/auth/logout
+
+  Auth: Required
+
+  Body: {} (uses token from header)
+
+  Action: Blacklists access token in Redis, revokes refresh token
+
+
+
+POST   /api/v1/auth/refresh-token
+
+  Auth: Public (uses refresh token)
+
+  Body: { refreshToken: string }
+
+  Returns: { accessToken, refreshToken } (rotation -- old token invalidated)
+
+
+
+POST   /api/v1/auth/forgot-password
+
+  Auth: Public
+
+  Body: { email: string }
+
+  Action: Sends reset link to email if account exists (no user enumeration)
+
+
+
+POST   /api/v1/auth/reset-password
+
+  Auth: Public (uses reset token from email)
+
+  Body: { token: string, newPassword: string }
+
+
+
+POST   /api/v1/auth/setup-2fa
+
+  Auth: Required
+
+  Returns: { qrCodeUrl, secret } for Google Authenticator setup
+
+
+
+POST   /api/v1/auth/verify-2fa
+
+  Auth: Required
+
+  Body: { totpCode: string }
+
+  Action: Enables 2FA on account after first verification
+
+
+
+GET    /api/v1/auth/sessions
+
+  Auth: Required (own sessions only)
+
+  Returns: List of active sessions with device, IP, created time
+
+
+
+DELETE /api/v1/auth/sessions/:id
+
+  Auth: Required
+
+  Action: Revoke specific session (logout from one device)
+
+
+
+SECTION 3: STUDENT ENDPOINTS
+
+
+
+GET    /api/v1/students
+
+  Auth: Required | Roles: All except TELECALLING
+
+  Query: classId, section, stream, search(name/admissionNo), isActive, page(1), limit(50)
+
+  Returns: Paginated student list with class info
+
+
+
+GET    /api/v1/students/:id
+
+  Auth: Required | Roles: All (STUDENT/PARENT see only own)
+
+  Returns: Full student profile
+
+
+
+GET    /api/v1/students/:id/profile
+
+  Auth: Required
+
+  Returns: Full profile + attendance %, fee outstanding, latest exam results
+
+
+
+POST   /api/v1/students
+
+  Auth: Required | Roles: MASTER_ADMIN, ADMIN, PRINCIPAL, VP, RECEPTION
+
+  Body: multipart/form-data { studentData: JSON, photo?: File }
+
+  Returns: Created student object
+
+
+
+PUT    /api/v1/students/:id
+
+  Auth: Required | Roles: MASTER_ADMIN, ADMIN, PRINCIPAL, VP, RECEPTION
+
+  Body: Partial student fields to update
+
+
+
+DELETE /api/v1/students/:id
+
+  Auth: Required | Roles: MASTER_ADMIN, ADMIN
+
+  Action: Soft delete (isActive = false). Data preserved.
+
+
+
+POST   /api/v1/students/bulk-import
+
+  Auth: Required | Roles: MASTER_ADMIN, ADMIN, IT_DEPT
+
+  Body: multipart/form-data { file: CSV|XLSX|TXT|DOCX }
+
+  Returns: { created: N, failed: M, errors: [{row, reason}] }
+
+
+
+GET    /api/v1/students/bulk-import/template
+
+  Auth: Required
+
+  Returns: CSV template file download
+
+
+
+GET    /api/v1/students/:id/id-card
+
+  Auth: Required | Roles: MASTER_ADMIN, ADMIN, IT_DEPT, RECEPTION
+
+  Returns: PDF student ID card
+
+
+
+SECTION 4: ATTENDANCE ENDPOINTS
+
+
+
+POST   /api/v1/attendance/mark
+
+  Auth: Required | Roles: TEACHER, AC_COORDINATOR, ADMIN, MASTER_ADMIN
+
+  Body: { classId, date, period(1-8), subjectId, records: [{studentId, status, remarks?}] }
+
+  Validation: Cannot mark future date. Cannot mark same class+date+period twice.
+
+  Action: Creates attendance records. Triggers WhatsApp for absent students.
+
+
+
+GET    /api/v1/attendance
+
+  Auth: Required
+
+  Query: classId, studentId, date(YYYY-MM-DD), dateFrom, dateTo, period, status
+
+
+
+GET    /api/v1/attendance/summary
+
+  Auth: Required
+
+  Query: classId, month(1-12), year, academicYear
+
+  Returns: Class-wise attendance summary with per-student percentages
+
+
+
+GET    /api/v1/attendance/:studentId/percentage
+
+  Auth: Required (STUDENT sees own only)
+
+  Query: month, year, academicYear
+
+  Returns: { percentage, totalDays, presentDays, absentDays, lateDays, isBelowThreshold }
+
+
+
+GET    /api/v1/attendance/below-threshold
+
+  Auth: Required | Roles: TEACHER and above
+
+  Query: classId, threshold(default=75), academicYear
+
+  Returns: Students below attendance threshold with their percentage
+
+
+
+SECTION 5: FEE ENDPOINTS
+
+
+
+GET    /api/v1/fees/structure
+
+  Auth: Required
+
+  Query: classId, academicYear, feeType
+
+
+
+POST   /api/v1/fees/structure
+
+  Auth: Required | Roles: MASTER_ADMIN, ADMIN, ACCOUNTS
+
+  Body: { classId, feeType, amount, dueDate, frequency, academicYear }
+
+
+
+POST   /api/v1/fees/payment/create-order
+
+  Auth: Required | Roles: ACCOUNTS, RECEPTION, ADMIN, MASTER_ADMIN
+
+  Body: { studentId, feeStructureId, amount, idempotencyKey }
+
+  Returns: { razorpayOrderId, amount, currency, keyId }
+
+
+
+POST   /api/v1/fees/payment/verify
+
+  Auth: Required
+
+  Body: { razorpayOrderId, razorpayPaymentId, razorpaySignature }
+
+  Action: Verifies Razorpay signature. Records payment. Generates receipt. Sends email.
+
+
+
+POST   /api/v1/fees/payment/webhook
+
+  Auth: Razorpay webhook signature (not JWT)
+
+  Action: Handles Razorpay payment events (paid, failed, refunded)
+
+
+
+GET    /api/v1/fees/student/:id
+
+  Auth: Required (STUDENT/PARENT see own only)
+
+  Returns: Complete fee ledger: structure, payments, outstanding balance
+
+
+
+GET    /api/v1/fees/defaulters
+
+  Auth: Required | Roles: ACCOUNTS, ADMIN, PRINCIPAL, MASTER_ADMIN
+
+  Query: classId, academicYear, minAmount(default=0)
+
+  Returns: Students with outstanding fees
+
+
+
+GET    /api/v1/fees/receipt/:paymentId
+
+  Auth: Required
+
+  Returns: PDF fee receipt
+
+
+
+POST   /api/v1/fees/reminders
+
+  Auth: Required | Roles: ACCOUNTS, ADMIN, MASTER_ADMIN
+
+  Body: { classId?, studentIds?, customMessage? }
+
+  Action: Sends WhatsApp reminders to selected defaulters
+
+
+
+POST   /api/v1/fees/refund
+
+  Auth: Required | Roles: MASTER_ADMIN, ADMIN
+
+  Body: { paymentId, amount, reason }
+
+
+
+GET    /api/v1/fees/reconcile
+
+  Auth: Required | Roles: MASTER_ADMIN, ACCOUNTS
+
+  Action: Cross-checks Razorpay records against DB. Returns discrepancy report.
+
+
+
+SECTION 6: EXAM ENDPOINTS
+
+
+
+GET    /api/v1/exams                    query: classId, examType, academicYear
+
+POST   /api/v1/exams                    auth: AC_COORDINATOR and above
+
+PUT    /api/v1/exams/:id
+
+DELETE /api/v1/exams/:id                auth: MASTER_ADMIN, ADMIN
+
+POST   /api/v1/exams/:id/marks          body: { results:[{studentId, marksObtained, remarks?}] }
+
+GET    /api/v1/exams/:id/results        query: classId
+
+GET    /api/v1/exams/:id/report-card/:studentId   returns PDF
+
+GET    /api/v1/exams/:id/ranklist       query: classId
+
+POST   /api/v1/exams/:id/publish        makes results visible to students/parents
+
+GET    /api/v1/exams/student/:id/history  all exams across academic years
+
+
+
+SECTION 7: STAFF AND LEAVE ENDPOINTS
+
+
+
+GET    /api/v1/staff                    query: department, role, showOnWebsite, isActive
+
+POST   /api/v1/staff                    multipart: {staffData: JSON, photo?: File}
+
+PUT    /api/v1/staff/:id
+
+DELETE /api/v1/staff/:id               soft delete
+
+PUT    /api/v1/staff/:id/website-toggle  toggles showOnWebsite boolean
+
+
+
+LEAVE ENDPOINTS -- See FINAL_02 Leave Management document for full spec
+
+POST   /api/v1/leaves/apply
+
+GET    /api/v1/leaves                  query: status, staffId, source, dateFrom, dateTo
+
+GET    /api/v1/leaves/my               own leave records
+
+GET    /api/v1/leaves/:id
+
+PUT    /api/v1/leaves/:id/principal-action  body: { action, note? }
+
+PUT    /api/v1/leaves/:id/director-action   body: { action, note? }
+
+DELETE /api/v1/leaves/:id/cancel
+
+GET    /api/v1/leaves/stats
+
+
+
+SECTION 8: LEAD CRM ENDPOINTS
+
+
+
+GET    /api/v1/leads                   query: status, source, assignedTo, dateFrom, dateTo, search
+
+POST   /api/v1/leads                   public OR auth (source indicator)
+
+  Body: { studentName, parentName, phone, email?, classApplying, source, campaign? }
+
+  Action: Creates lead, sends WhatsApp welcome, notifies admin
+
+PUT    /api/v1/leads/:id               update status, notes, assignedTo, nextFollowUp
+
+POST   /api/v1/leads/:id/call-log      body: { notes, nextFollowUp }
+
+POST   /api/v1/leads/:id/convert       converts lead to student admission
+
+GET    /api/v1/leads/analytics         { funnel, sourceBreakdown, conversionRate, avgDaysToConvert }
+
+POST   /api/v1/leads/bulk-whatsapp     body: { leadIds[], message? }
+
+
+
+SECTION 9: WEBSITE CMS ENDPOINTS
+
+
+
+GET    /api/v1/cms/content/:key         public
+
+PUT    /api/v1/cms/content/:key         auth: ADMIN, IT_DEPT, MASTER_ADMIN
+
+GET    /api/v1/cms/slides               public
+
+POST/PUT/DELETE /api/v1/cms/slides(/:id) auth: ADMIN, IT_DEPT
+
+GET    /api/v1/cms/highlights           public
+
+POST/PUT/DELETE /api/v1/cms/highlights(/:id)
+
+GET    /api/v1/cms/programs             public
+
+POST/PUT/DELETE /api/v1/cms/programs(/:id)
+
+GET    /api/v1/cms/facilities           public
+
+POST/PUT/DELETE /api/v1/cms/facilities(/:id)
+
+GET    /api/v1/cms/testimonials         public
+
+POST/PUT/DELETE /api/v1/cms/testimonials(/:id)
+
+GET    /api/v1/cms/statistics           public
+
+PUT    /api/v1/cms/statistics/:id
+
+
+
+SECTION 10: GALLERY, BLOG, CONTACT, CAREER ENDPOINTS
+
+
+
+GALLERY:
+
+GET    /api/v1/gallery                 query: folderId, isVisible | public
+
+GET    /api/v1/gallery/folders         public
+
+POST/PUT/DELETE /api/v1/gallery/folders(/:id)  auth: ADMIN, IT_DEPT, MARKETING
+
+POST   /api/v1/gallery/upload          multipart: {folderId, photos[]} auth: ADMIN, IT_DEPT
+
+DELETE /api/v1/gallery/photos/:id      auth: ADMIN, IT_DEPT
+
+
+
+BLOG:
+
+GET    /api/v1/blog-posts              query: category, tag, isPublished, page, limit | public
+
+GET    /api/v1/blog-posts/:slug        public
+
+POST/PUT/DELETE /api/v1/blog-posts(/:id)  auth: TEACHER, ADMIN, IT_DEPT, MARKETING
+
+POST   /api/v1/blog-posts/:id/publish
+
+POST   /api/v1/blog/auto-publish       auth: X-Blog-Automation-Key header
+
+  Body: { title, content, category, tags?, excerpt?, featuredImage?, seoTitle?, seoDescription?, publishedAt?, autoPostSource? }
+
+
+
+CONTACT -- See FINAL_03 for full spec:
+
+POST   /api/v1/contact                 public | dedup check runs
+
+GET    /api/v1/contact                 auth: ADMIN, RECEPTION
+
+PUT    /api/v1/contact/:id             update status, notes
+
+POST   /api/v1/contact/:id/reply       sends email to enquirer
+
+GET    /api/v1/contact/stats
+
+
+
+CAREERS -- See FINAL_03 for full spec:
+
+GET    /api/v1/careers/jobs            public: active listings
+
+POST/PUT/DELETE /api/v1/careers/jobs(/:id)  auth: ADMIN, MASTER_ADMIN
+
+POST   /api/v1/career-applications     public | multipart with resume | dedup check runs
+
+GET    /api/v1/career-applications     auth: ADMIN, DIRECTOR, MASTER_ADMIN
+
+PUT    /api/v1/career-applications/:id
+
+POST   /api/v1/career-applications/:id/reply
+
+GET    /api/v1/career-applications/stats
+
+
+
+SECTION 11: EXPORT AND SYSTEM ENDPOINTS
+
+
+
+EXPORT: GET /api/v1/export/:module
+
+  Modules: students | attendance | fees | exams | staff | leads | library | transport
+
+  Query: format(pdf|xlsx|docx|csv) + module-specific filters
+
+
+
+IMPORT: POST /api/v1/import/:module
+
+  Modules: students | staff
+
+  Body: multipart file (CSV|XLSX|TXT|DOCX)
+
+  Returns: { preview: first10rows, totalRows, validRows, errors: [{row, reason}] }
+
+
+
+NOTIFICATIONS:
+
+POST   /api/v1/notifications/send      body: { title, message, targetRole?, targetClassId?, channels[] }
+
+GET    /api/v1/notifications           own notifications
+
+PUT    /api/v1/notifications/:id/read
+
+PUT    /api/v1/notifications/read-all
+
+GET    /api/v1/notifications/templates
+
+
+
+ANALYTICS:
+
+GET    /api/v1/analytics/dashboard     KPI cards
+
+GET    /api/v1/analytics/attendance    trends
+
+GET    /api/v1/analytics/fees          collection chart
+
+GET    /api/v1/analytics/leads         funnel and conversion
+
+GET    /api/v1/analytics/exams         performance trends
+
+
+
+SYSTEM:
+
+GET    /api/v1/health                  returns status of all services
+
+GET    /api/v1/audit                   query: userId, module, dateFrom, dateTo
+
+GET    /api/v1/docs                    Swagger UI (admin/IT only)
+
+
+
+END OF DOCUMENT
+
+FINAL_05 API Contracts Enhanced v2.0 | PROMPT FOLDER | erp.bfpsedu.in | April 2026
+
+Baba Farid Public School | /api/v1/ prefix | JWT Auth | Razorpay | Supabase | April 2026

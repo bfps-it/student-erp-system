@@ -1,0 +1,2787 @@
+FINAL_04 -- BFPS ERD ENHANCED v2.0 -- COMPLETE DATABASE SCHEMA -- PROMPT FOLDER DOCUMENT
+
+BABA FARID PUBLIC SCHOOL (BFPS)
+
+Kilianwali, Punjab | ICSE/ISC Board | PU170 | bfpsedu.in
+
+
+
+ENTITY RELATIONSHIP DIAGRAM
+
+Complete Database Schema -- All 38 Models
+
+FINAL_04 v2.0 | April 2026 | PROMPT FOLDER DOCUMENT
+
+
+
+For Anti-Gravity: Use this as definitive database reference. Supersedes BFPS_ERD.docx.
+
+SECTION 1: ENTITY MAP OVERVIEW
+
+
+
+Total models: 38 | Database: PostgreSQL via Supabase | ORM: Prisma
+
+
+
+Domain
+
+Models Included
+
+User & Auth
+
+User, UserSession, AuditLog
+
+Academic Core
+
+Class, Subject, Student, Staff
+
+Attendance
+
+Attendance
+
+Fees & Payments
+
+FeeStructure, FeePayment, PaymentOrder
+
+Examinations
+
+Exam, ExamResult
+
+Leave Management
+
+LeaveRequest
+
+HR & Timetable
+
+Timetable, HomeworkSubmission, Homework
+
+CRM & Admissions
+
+Lead, LeadCallLog
+
+Notifications
+
+Notification, SMSTemplate
+
+Library
+
+Book, BookIssue
+
+Transport
+
+TransportRoute, StudentTransport
+
+Hostel
+
+HostelRoom, HostelAllocation
+
+Website CMS
+
+SchoolContent, WebsiteSlide, WebsiteProgram, WebsiteFacility, WebsiteHighlight, WebsiteStatistic, Testimonial
+
+Blog
+
+BlogPost
+
+Gallery
+
+GalleryFolder, GalleryPhoto
+
+Careers
+
+JobPosting, CareerApplication
+
+Contact
+
+ContactEnquiry
+
+Visitor
+
+VisitorLog
+
+System
+
+ChatbotFAQ, SystemHealth
+
+
+
+SECTION 2: COMPLETE MODEL DEFINITIONS
+
+
+
+2.1 User and Auth Domain
+
+
+
+MODEL: User
+
+Field
+
+Type
+
+Constraints
+
+Notes
+
+id
+
+Int
+
+PK, autoincrement
+
+
+
+email
+
+String
+
+unique, not null
+
+Official bfpsedu.in email
+
+passwordHash
+
+String
+
+not null
+
+bcrypt 12 rounds
+
+role
+
+Role enum
+
+not null
+
+See roles below
+
+isActive
+
+Boolean
+
+default true
+
+Soft disable on resign
+
+lastLogin
+
+DateTime
+
+nullable
+
+Updated on each login
+
+twoFactorEnabled
+
+Boolean
+
+default false
+
+Mandatory for ADMIN and above
+
+twoFactorSecret
+
+String
+
+nullable, encrypted
+
+TOTP secret, AES-256
+
+profilePhoto
+
+String
+
+nullable
+
+Cloudinary URL
+
+fullName
+
+String
+
+not null
+
+
+
+phone
+
+String
+
+nullable
+
+
+
+department
+
+String
+
+nullable
+
+
+
+createdAt
+
+DateTime
+
+default now()
+
+
+
+updatedAt
+
+DateTime
+
+auto-update
+
+
+
+
+
+ROLE ENUM: MASTER_ADMIN | ADMIN | DIRECTOR | PRINCIPAL | VICE_PRINCIPAL | AC_COORDINATOR | TEACHER | IT_DEPT | ACCOUNTS | RECEPTION | MARKETING | TELECALLING | TRANSPORT_MANAGER | HOSTEL_WARDEN | LIBRARIAN | STUDENT | PARENT
+
+
+
+MODEL: UserSession
+
+Field
+
+Type
+
+Constraints
+
+Notes
+
+id
+
+String
+
+PK, cuid()
+
+
+
+userId
+
+Int
+
+FK -> User
+
+
+
+refreshToken
+
+String
+
+unique
+
+Hashed before storing
+
+deviceInfo
+
+String
+
+nullable
+
+Browser/device string
+
+ipAddress
+
+String
+
+nullable
+
+
+
+isRevoked
+
+Boolean
+
+default false
+
+
+
+expiresAt
+
+DateTime
+
+not null
+
+7 days from creation
+
+createdAt
+
+DateTime
+
+default now()
+
+
+
+
+
+MODEL: AuditLog
+
+Field
+
+Type
+
+Constraints
+
+Notes
+
+id
+
+Int
+
+PK, autoincrement
+
+
+
+userId
+
+Int
+
+FK -> User
+
+
+
+userEmail
+
+String
+
+not null
+
+Denormalized for history
+
+action
+
+String
+
+not null
+
+e.g. CREATE_STUDENT
+
+module
+
+String
+
+not null
+
+e.g. STUDENTS
+
+recordId
+
+String
+
+nullable
+
+ID of affected record
+
+oldValue
+
+Json
+
+nullable
+
+Before state
+
+newValue
+
+Json
+
+nullable
+
+After state
+
+ipAddress
+
+String
+
+nullable
+
+
+
+userAgent
+
+String
+
+nullable
+
+
+
+createdAt
+
+DateTime
+
+default now()
+
+
+
+
+
+2.2 Academic Core Domain
+
+
+
+MODEL: Class
+
+Field
+
+Type
+
+Constraints
+
+Notes
+
+id
+
+Int
+
+PK
+
+
+
+name
+
+String
+
+not null
+
+e.g. Class 10, Nursery, LKG, UKG
+
+grade
+
+Int
+
+nullable
+
+1-12 for numbered classes
+
+section
+
+String
+
+not null
+
+A, B, C etc.
+
+stream
+
+Stream enum
+
+default NA
+
+ENG|MED|COM|HUM|NA (for 11-12)
+
+academicYear
+
+String
+
+not null
+
+e.g. 2026-27
+
+classTeacherId
+
+Int
+
+FK -> Staff, nullable
+
+
+
+roomNumber
+
+String
+
+nullable
+
+
+
+maxStrength
+
+Int
+
+default 40
+
+
+
+createdAt
+
+DateTime
+
+default now()
+
+
+
+
+
+STREAM ENUM: ENG | MED | COM | HUM | NA
+
+
+
+MODEL: Subject
+
+Field
+
+Type
+
+Constraints
+
+Notes
+
+id
+
+Int
+
+PK
+
+
+
+name
+
+String
+
+not null
+
+e.g. Mathematics, Physics
+
+code
+
+String
+
+nullable
+
+Subject code
+
+classId
+
+Int
+
+FK -> Class
+
+
+
+staffId
+
+Int
+
+FK -> Staff, nullable
+
+Primary teacher
+
+isElective
+
+Boolean
+
+default false
+
+
+
+maxMarks
+
+Int
+
+default 100
+
+
+
+passingMarks
+
+Int
+
+default 35
+
+
+
+isActive
+
+Boolean
+
+default true
+
+
+
+
+
+MODEL: Student
+
+Field
+
+Type
+
+Constraints
+
+Notes
+
+id
+
+Int
+
+PK
+
+
+
+userId
+
+Int
+
+FK -> User, unique, nullable
+
+ERP login account
+
+admissionNo
+
+String
+
+unique, not null
+
+Auto-generated on admission
+
+name
+
+String
+
+not null
+
+
+
+photo
+
+String
+
+nullable
+
+Cloudinary URL
+
+classId
+
+Int
+
+FK -> Class
+
+
+
+rollNumber
+
+Int
+
+nullable
+
+
+
+dateOfBirth
+
+DateTime
+
+not null
+
+
+
+gender
+
+String
+
+not null
+
+Male|Female|Other
+
+bloodGroup
+
+String
+
+nullable
+
+
+
+religion
+
+String
+
+nullable
+
+
+
+category
+
+String
+
+nullable
+
+General|OBC|SC|ST
+
+address
+
+String
+
+not null
+
+
+
+city
+
+String
+
+not null
+
+
+
+state
+
+String
+
+default Punjab
+
+
+
+pincode
+
+String
+
+nullable
+
+
+
+parentName
+
+String
+
+not null
+
+Father/Guardian name
+
+motherName
+
+String
+
+nullable
+
+
+
+parentPhone
+
+String
+
+not null
+
+Primary contact
+
+alternatePhone
+
+String
+
+nullable
+
+
+
+parentEmail
+
+String
+
+nullable
+
+For notifications
+
+parentLanguage
+
+String
+
+default EN
+
+EN|HI for notifications
+
+parentOccupation
+
+String
+
+nullable
+
+
+
+aadhaarNumber
+
+String
+
+nullable
+
+AES-256 encrypted
+
+previousSchool
+
+String
+
+nullable
+
+
+
+tcNumber
+
+String
+
+nullable
+
+Transfer certificate
+
+admissionDate
+
+DateTime
+
+not null
+
+
+
+academicYear
+
+String
+
+not null
+
+
+
+isActive
+
+Boolean
+
+default true
+
+
+
+isAlumni
+
+Boolean
+
+default false
+
+
+
+hostelResident
+
+Boolean
+
+default false
+
+
+
+transportUser
+
+Boolean
+
+default false
+
+
+
+createdAt
+
+DateTime
+
+default now()
+
+
+
+updatedAt
+
+DateTime
+
+auto-update
+
+
+
+
+
+MODEL: Staff
+
+Field
+
+Type
+
+Constraints
+
+Notes
+
+id
+
+Int
+
+PK
+
+
+
+userId
+
+Int
+
+FK -> User, unique
+
+ERP login account
+
+employeeId
+
+String
+
+unique, not null
+
+Auto-generated
+
+name
+
+String
+
+not null
+
+
+
+photo
+
+String
+
+nullable
+
+Cloudinary URL
+
+designation
+
+String
+
+not null
+
+e.g. PGT Mathematics
+
+department
+
+String
+
+not null
+
+
+
+qualification
+
+String
+
+nullable
+
+
+
+experience
+
+Int
+
+nullable
+
+Years
+
+dateOfJoining
+
+DateTime
+
+not null
+
+
+
+dateOfBirth
+
+DateTime
+
+nullable
+
+
+
+gender
+
+String
+
+nullable
+
+
+
+phone
+
+String
+
+nullable
+
+
+
+emergencyContact
+
+String
+
+nullable
+
+
+
+address
+
+String
+
+nullable
+
+
+
+aadhaarNumber
+
+String
+
+nullable
+
+AES-256 encrypted
+
+panNumber
+
+String
+
+nullable
+
+AES-256 encrypted
+
+bankAccountNumber
+
+String
+
+nullable
+
+AES-256 encrypted
+
+bankIfsc
+
+String
+
+nullable
+
+
+
+basicSalary
+
+Float
+
+nullable
+
+
+
+bio
+
+String
+
+nullable
+
+For website display
+
+showOnWebsite
+
+Boolean
+
+default false
+
+Toggle for website faculty page
+
+isActive
+
+Boolean
+
+default true
+
+
+
+createdAt
+
+DateTime
+
+default now()
+
+
+
+updatedAt
+
+DateTime
+
+auto-update
+
+
+
+
+
+2.3 Attendance Domain
+
+
+
+MODEL: Attendance
+
+Field
+
+Type
+
+Constraints
+
+Notes
+
+id
+
+Int
+
+PK
+
+
+
+studentId
+
+Int
+
+FK -> Student
+
+
+
+classId
+
+Int
+
+FK -> Class
+
+
+
+subjectId
+
+Int
+
+FK -> Subject, nullable
+
+
+
+staffId
+
+Int
+
+FK -> Staff
+
+Teacher who marked
+
+date
+
+DateTime
+
+not null
+
+Date only (time = midnight)
+
+period
+
+Int
+
+not null
+
+1-8
+
+status
+
+AttStatus enum
+
+not null
+
+PRESENT|ABSENT|LATE|LEAVE|HOLIDAY
+
+remarks
+
+String
+
+nullable
+
+
+
+academicYear
+
+String
+
+not null
+
+
+
+notificationSent
+
+Boolean
+
+default false
+
+WhatsApp sent on absent
+
+createdAt
+
+DateTime
+
+default now()
+
+
+
+@@unique
+
+[studentId, date, period, subjectId]
+
+Composite unique
+
+No duplicate marking
+
+ATTSTATUS ENUM: PRESENT | ABSENT | LATE | LEAVE | HOLIDAY
+
+
+
+2.4 Fees and Payments Domain
+
+
+
+MODEL: FeeStructure
+
+Field
+
+Type
+
+Constraints
+
+Notes
+
+id
+
+Int
+
+PK
+
+
+
+classId
+
+Int
+
+FK -> Class
+
+
+
+feeType
+
+String
+
+not null
+
+Tuition|Hostel|Transport|Activity|Exam|Admission
+
+amount
+
+Float
+
+not null
+
+
+
+dueDate
+
+DateTime
+
+not null
+
+Monthly due date
+
+frequency
+
+String
+
+default MONTHLY
+
+MONTHLY|QUARTERLY|ANNUAL|ONETIME
+
+academicYear
+
+String
+
+not null
+
+
+
+isActive
+
+Boolean
+
+default true
+
+
+
+createdAt
+
+DateTime
+
+default now()
+
+
+
+
+
+MODEL: FeePayment
+
+Field
+
+Type
+
+Constraints
+
+Notes
+
+id
+
+Int
+
+PK
+
+
+
+studentId
+
+Int
+
+FK -> Student
+
+
+
+feeStructureId
+
+Int
+
+FK -> FeeStructure
+
+
+
+amountDue
+
+Float
+
+not null
+
+
+
+amountPaid
+
+Float
+
+not null
+
+
+
+balance
+
+Float
+
+default 0
+
+Remaining after payment
+
+discountAmount
+
+Float
+
+default 0
+
+Concession if any
+
+discountReason
+
+String
+
+nullable
+
+
+
+method
+
+String
+
+not null
+
+CASH|RAZORPAY|CHEQUE|DD|NEFT
+
+receiptNo
+
+String
+
+unique, not null
+
+Auto-generated
+
+razorpayOrderId
+
+String
+
+nullable
+
+
+
+razorpayPaymentId
+
+String
+
+nullable
+
+
+
+razorpaySignature
+
+String
+
+nullable
+
+For verification
+
+status
+
+PayStatus enum
+
+not null
+
+PENDING|PAID|PARTIAL|OVERDUE|WAIVED
+
+paidAt
+
+DateTime
+
+nullable
+
+
+
+paidBy
+
+Int
+
+FK -> User, nullable
+
+Staff who recorded
+
+remarks
+
+String
+
+nullable
+
+
+
+academicYear
+
+String
+
+not null
+
+
+
+createdAt
+
+DateTime
+
+default now()
+
+
+
+PAYSTATUS ENUM: PENDING | PAID | PARTIAL | OVERDUE | WAIVED
+
+
+
+MODEL: PaymentOrder (Razorpay tracking)
+
+Field
+
+Type
+
+Constraints
+
+Notes
+
+id
+
+Int
+
+PK
+
+
+
+orderId
+
+String
+
+unique
+
+Internal order ID
+
+entityId
+
+Int
+
+not null
+
+Student ID or related entity
+
+entityType
+
+String
+
+not null
+
+FEE|HOSTEL|TRANSPORT|ADMISSION
+
+amount
+
+Float
+
+not null
+
+In rupees
+
+currency
+
+String
+
+default INR
+
+
+
+status
+
+String
+
+not null
+
+CREATED|PAID|FAILED|REFUNDED
+
+razorpayOrderId
+
+String
+
+nullable
+
+From Razorpay
+
+razorpayPaymentId
+
+String
+
+nullable
+
+After payment
+
+razorpaySignature
+
+String
+
+nullable
+
+For verification
+
+metadata
+
+Json
+
+nullable
+
+Extra context
+
+idempotencyKey
+
+String
+
+unique, not null
+
+Prevents duplicate orders
+
+createdAt
+
+DateTime
+
+default now()
+
+
+
+paidAt
+
+DateTime
+
+nullable
+
+
+
+
+
+2.5 Examinations Domain
+
+
+
+MODEL: Exam
+
+Field
+
+Type
+
+Constraints
+
+Notes
+
+id
+
+Int
+
+PK
+
+
+
+name
+
+String
+
+not null
+
+e.g. Unit Test 1, Half Yearly
+
+examType
+
+ExamType enum
+
+not null
+
+UT|HY|ANNUAL|BOARD|MOCK
+
+classId
+
+Int
+
+FK -> Class
+
+
+
+subjectId
+
+Int
+
+FK -> Subject
+
+
+
+examDate
+
+DateTime
+
+not null
+
+
+
+startTime
+
+String
+
+nullable
+
+HH:MM format
+
+duration
+
+Int
+
+nullable
+
+Minutes
+
+maxMarks
+
+Int
+
+not null
+
+
+
+passingMarks
+
+Int
+
+not null
+
+
+
+venue
+
+String
+
+nullable
+
+
+
+academicYear
+
+String
+
+not null
+
+
+
+isResultPublished
+
+Boolean
+
+default false
+
+
+
+createdBy
+
+Int
+
+FK -> Staff
+
+
+
+createdAt
+
+DateTime
+
+default now()
+
+
+
+EXAMTYPE ENUM: UT | HY | ANNUAL | BOARD | MOCK | PRACTICAL
+
+
+
+MODEL: ExamResult
+
+Field
+
+Type
+
+Constraints
+
+Notes
+
+id
+
+Int
+
+PK
+
+
+
+examId
+
+Int
+
+FK -> Exam
+
+
+
+studentId
+
+Int
+
+FK -> Student
+
+
+
+marksObtained
+
+Float
+
+not null
+
+
+
+grade
+
+String
+
+nullable
+
+A1|A2|B1|B2|C1|C2|D|E -- ICSE grading
+
+percentage
+
+Float
+
+nullable
+
+Auto-calculated
+
+isPassed
+
+Boolean
+
+not null
+
+
+
+rank
+
+Int
+
+nullable
+
+Class rank
+
+remarks
+
+String
+
+nullable
+
+Teacher remarks
+
+enteredBy
+
+Int
+
+FK -> Staff
+
+
+
+enteredAt
+
+DateTime
+
+default now()
+
+
+
+@@unique
+
+[examId, studentId]
+
+
+
+No duplicate results
+
+
+
+2.6 Leave Management Domain (See FINAL_02 for full spec)
+
+
+
+MODEL: LeaveRequest
+
+Field
+
+Type
+
+Constraints
+
+Notes
+
+id
+
+Int
+
+PK
+
+
+
+ticketId
+
+String
+
+unique, cuid()
+
+Human-readable ticket ID
+
+staffId
+
+Int
+
+FK -> Staff
+
+
+
+leaveType
+
+LeaveType enum
+
+not null
+
+CASUAL|MEDICAL|EARNED|EMERGENCY|OTHER
+
+fromDate
+
+DateTime
+
+not null
+
+
+
+toDate
+
+DateTime
+
+not null
+
+
+
+totalDays
+
+Int
+
+not null
+
+Auto-calculated
+
+reason
+
+String
+
+not null, Text
+
+
+
+source
+
+LeaveSource enum
+
+not null
+
+EMAIL|APP|MERGED
+
+status
+
+LeaveStatus enum
+
+not null
+
+PENDING_PRINCIPAL|PENDING_DIRECTOR|APPROVED|REJECTED|CANCELLED
+
+principalId
+
+Int
+
+FK -> Staff, nullable
+
+
+
+principalAction
+
+ApprovalAction
+
+nullable
+
+APPROVED|REJECTED
+
+principalNote
+
+String
+
+nullable
+
+
+
+principalAt
+
+DateTime
+
+nullable
+
+
+
+directorId
+
+Int
+
+FK -> Staff, nullable
+
+
+
+directorAction
+
+ApprovalAction
+
+nullable
+
+APPROVED|REJECTED
+
+directorNote
+
+String
+
+nullable
+
+
+
+directorAt
+
+DateTime
+
+nullable
+
+
+
+isDuplicate
+
+Boolean
+
+default false
+
+
+
+mergedIntoId
+
+Int
+
+nullable
+
+Points to primary ticket
+
+autoReplyEmailSent
+
+Boolean
+
+default false
+
+
+
+pushNotifSent
+
+Boolean
+
+default false
+
+
+
+createdAt
+
+DateTime
+
+default now()
+
+
+
+updatedAt
+
+DateTime
+
+auto-update
+
+
+
+
+
+2.7 CRM and Admissions Domain
+
+
+
+MODEL: Lead
+
+Field
+
+Type
+
+Constraints
+
+Notes
+
+id
+
+Int
+
+PK
+
+
+
+referenceId
+
+String
+
+unique, cuid()
+
+
+
+studentName
+
+String
+
+not null
+
+
+
+parentName
+
+String
+
+not null
+
+
+
+phone
+
+String
+
+not null
+
+
+
+email
+
+String
+
+nullable
+
+
+
+classApplying
+
+String
+
+not null
+
+
+
+source
+
+String
+
+not null
+
+WEBSITE|WHATSAPP|INSTAGRAM|WALKIN|REFERRAL|AD|OTHER
+
+campaign
+
+String
+
+nullable
+
+Ad campaign name if applicable
+
+status
+
+LeadStatus enum
+
+not null
+
+NEW|CONTACTED|VISIT_SCHEDULED|VISIT_DONE|APPLIED|ADMITTED|LOST
+
+assignedTo
+
+Int
+
+FK -> User, nullable
+
+Telecaller assigned
+
+nextFollowUp
+
+DateTime
+
+nullable
+
+
+
+notes
+
+String
+
+nullable, Text
+
+
+
+convertedStudentId
+
+Int
+
+FK -> Student, nullable
+
+After admission
+
+lostReason
+
+String
+
+nullable
+
+
+
+whatsappSent
+
+Boolean
+
+default false
+
+Auto-welcome message
+
+createdAt
+
+DateTime
+
+default now()
+
+
+
+updatedAt
+
+DateTime
+
+auto-update
+
+
+
+LEADSTATUS ENUM: NEW | CONTACTED | VISIT_SCHEDULED | VISIT_DONE | APPLIED | ADMITTED | LOST
+
+
+
+2.8 Career and Contact Domains (See FINAL_03 for full spec)
+
+
+
+MODEL: CareerApplication
+
+Field
+
+Type
+
+Constraints
+
+Notes
+
+id
+
+Int
+
+PK
+
+
+
+referenceId
+
+String
+
+unique, cuid()
+
+
+
+jobPostingId
+
+Int
+
+FK -> JobPosting, nullable
+
+
+
+applicantName
+
+String
+
+not null
+
+
+
+email
+
+String
+
+not null
+
+
+
+phone
+
+String
+
+nullable
+
+
+
+position
+
+String
+
+not null
+
+Normalized lowercase
+
+experience
+
+String
+
+nullable
+
+
+
+qualification
+
+String
+
+nullable
+
+
+
+resumeUrl
+
+String
+
+nullable
+
+Cloudinary URL
+
+coverLetter
+
+String
+
+nullable, Text
+
+
+
+source
+
+AppSource enum
+
+not null
+
+FORM|EMAIL|MERGED
+
+status
+
+AppStatus enum
+
+not null
+
+NEW|REVIEWING|SHORTLISTED|INTERVIEW|SELECTED|REJECTED|WITHDRAWN|DUPLICATE_CANCELLED
+
+isDuplicate
+
+Boolean
+
+default false
+
+
+
+mergedIntoId
+
+Int
+
+nullable
+
+
+
+deduplicationLog
+
+String
+
+nullable, Text
+
+
+
+autoReplySent
+
+Boolean
+
+default false
+
+
+
+adminNotes
+
+String
+
+nullable
+
+
+
+createdAt
+
+DateTime
+
+default now()
+
+
+
+updatedAt
+
+DateTime
+
+auto-update
+
+
+
+
+
+MODEL: ContactEnquiry
+
+Field
+
+Type
+
+Constraints
+
+Notes
+
+id
+
+Int
+
+PK
+
+
+
+referenceId
+
+String
+
+unique, cuid()
+
+
+
+name
+
+String
+
+not null
+
+
+
+email
+
+String
+
+nullable
+
+
+
+phone
+
+String
+
+nullable
+
+At least one of email/phone required
+
+subject
+
+String
+
+not null
+
+
+
+message
+
+String
+
+not null, Text
+
+
+
+source
+
+EnqSource enum
+
+not null
+
+FORM|EMAIL|MERGED
+
+status
+
+EnqStatus enum
+
+not null
+
+NEW|READ|IN_PROGRESS|RESOLVED|DUPLICATE_CANCELLED
+
+isDuplicate
+
+Boolean
+
+default false
+
+
+
+mergedIntoId
+
+Int
+
+nullable
+
+
+
+deduplicationLog
+
+String
+
+nullable
+
+
+
+handledBy
+
+Int
+
+FK -> User, nullable
+
+
+
+adminNotes
+
+String
+
+nullable
+
+
+
+autoReplySent
+
+Boolean
+
+default false
+
+
+
+resolvedAt
+
+DateTime
+
+nullable
+
+
+
+createdAt
+
+DateTime
+
+default now()
+
+
+
+
+
+2.9 Remaining Models Summary
+
+Model
+
+Key Fields
+
+Relations & Notes
+
+Timetable
+
+classId, subjectId, staffId, dayOfWeek(1-7), period(1-8), room, isSubstitution, substituteForId
+
+@@unique [classId, dayOfWeek, period]
+
+Homework
+
+classId, subjectId, staffId, title, description, dueDate, attachmentUrl
+
+->Class, ->Subject, ->Staff
+
+HomeworkSubmission
+
+homeworkId, studentId, submittedAt, attachmentUrl, marks, feedback
+
+@@unique [homeworkId, studentId]
+
+Book
+
+isbn(unique), title, author, publisher, category, totalCopies, availableCopies, shelfLocation
+
+
+
+BookIssue
+
+bookId, studentId, issuedById, issueDate, dueDate, returnDate, fineAmount, isPaid
+
+
+
+TransportRoute
+
+name, stops(Json), vehicleNo, driverId, driverPhone, isActive
+
+stops: [{name, lat, lng, order}]
+
+StudentTransport
+
+studentId, routeId, stopName, feeAmount, academicYear
+
+@@unique [studentId, academicYear]
+
+HostelRoom
+
+roomNo, floor, capacity, type(SINGLE/DOUBLE/DORM), currentOccupancy, wardenId
+
+
+
+HostelAllocation
+
+roomId, studentId, checkIn, checkOut, monthlyFee, isActive
+
+
+
+Notification
+
+title, message, type, targetRole, targetClassId, targetUserId, channels(Json), sentAt, isRead
+
+
+
+SMSTemplate
+
+name, templateType, bodyEn, bodyHi, variables(Json), isActive
+
+
+
+BlogPost
+
+title, slug(unique), content, excerpt, featuredImage, category, tags(Json), authorId, isPublished, autoPosted, autoPostSource, views, seoTitle, seoDescription
+
+
+
+GalleryFolder
+
+name, slug(unique), description, coverImage, isVisible, displayOrder, eventDate
+
+
+
+GalleryPhoto
+
+folderId, cloudinaryId, url, caption, displayOrder
+
+
+
+SchoolContent
+
+key(unique), value, dataType, updatedAt, updatedById
+
+Key-value CMS store
+
+WebsiteSlide
+
+imageUrl, cloudinaryId, headline, subHeadline, ctaText, ctaLink, displayOrder, isActive
+
+
+
+Testimonial
+
+name, role, quote, photoUrl, isVisible, displayOrder
+
+
+
+WebsiteProgram
+
+title, description, imageUrl, classes, displayOrder, isVisible
+
+
+
+WebsiteFacility
+
+title, description, imageUrl, icon, displayOrder, isVisible
+
+
+
+WebsiteHighlight
+
+icon, title, description, displayOrder, isVisible
+
+
+
+WebsiteStatistic
+
+label, value, icon, displayOrder
+
+
+
+JobPosting
+
+title, department, experience, description, isActive, expiresAt
+
+
+
+VisitorLog
+
+visitorName, phone, purpose, personToMeet, entryTime, exitTime, visitorPassUrl
+
+
+
+ChatbotFAQ
+
+question, answer, category, isActive, displayOrder
+
+
+
+SystemHealth
+
+service, status, lastCheckedAt, responseTimeMs, errorMessage
+
+
+
+
+
+SECTION 3: RELATIONSHIPS SUMMARY
+
+
+
+User (1) ----< UserSession (many)
+
+User (1) ----> Student (1)     [student ERP account]
+
+User (1) ----> Staff (1)       [staff ERP account]
+
+Class (1) ---< Student (many)
+
+Class (1) ---< Subject (many)
+
+Class (1) ---< Timetable (many)
+
+Class (1) ---< Attendance (many)
+
+Class (1) ---< Exam (many)
+
+Student (1) ---< Attendance (many)
+
+Student (1) ---< FeePayment (many)
+
+Student (1) ---< ExamResult (many)
+
+Student (1) ---< HomeworkSubmission (many)
+
+Student (1) ---< BookIssue (many)
+
+Student (1) ---< StudentTransport (1)
+
+Student (1) ---< HostelAllocation (1)
+
+Lead (1) ----> Student (1)    [after conversion]
+
+Staff (1) ---< LeaveRequest (many)
+
+Staff (1) ---< Timetable (many)
+
+Staff (1) ---< Homework (many)
+
+Exam (1) ---< ExamResult (many)
+
+GalleryFolder (1) ---< GalleryPhoto (many)
+
+JobPosting (1) ---< CareerApplication (many)
+
+SECTION 4: DATABASE INDEXES REQUIRED
+
+
+
+User: email, role, isActive
+
+Student: classId+section, admissionNo, isActive, parentPhone
+
+Staff: department, isActive, showOnWebsite
+
+Attendance: studentId+date, classId+date+period, staffId+date
+
+FeePayment: studentId, status, paidAt, academicYear
+
+Exam: classId+academicYear, examType
+
+ExamResult: examId, studentId
+
+LeaveRequest: staffId+fromDate, status, isDuplicate
+
+Lead: status+createdAt, assignedTo+status, source
+
+CareerApplication: email+position, status, isDuplicate, createdAt
+
+ContactEnquiry: email+createdAt, phone+createdAt, status, isDuplicate
+
+BlogPost: slug, isPublished, category, publishedAt
+
+AuditLog: userId+createdAt, module+createdAt
+
+Notification: targetRole, targetClassId, targetUserId
+
+
+
+END OF DOCUMENT
+
+FINAL_04 ERD Enhanced v2.0 | PROMPT FOLDER | April 2026
+
+Baba Farid Public School | erp.bfpsedu.in | 38 Models | PostgreSQL via Supabase | April 2026

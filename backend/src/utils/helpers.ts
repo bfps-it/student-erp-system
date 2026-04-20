@@ -1,5 +1,6 @@
 import slugify from 'slugify';
 import xss from 'xss';
+
 import type { PaginationMeta } from '../types';
 
 /**

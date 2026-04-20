@@ -1,0 +1,1298 @@
+BFPS ERP -- CAREER & CONTACT OMNICHANNEL DEDUPLICATION -- ADDENDUM v1.0 -- ANTI-GRAVITY DOCUMENT
+
+BFPS ERP ECOSYSTEM
+
+FEATURE ADDENDUM:
+
+CAREER & CONTACT OMNICHANNEL DEDUPLICATION
+
+
+
+Document Type: Anti-Gravity Feature Specification Addendum
+
+Add to folder: BabaFaridPublicSchool/Prompt/
+
+Version: 1.0 | April 2026 | Compatible: Claude Opus 4.6 and Claude Sonnet 4.6
+
+Expands: Master Doc v3.0 Section 4 (Career) and Section 7 (Contact)
+
+INSTRUCTION TO ANTI-GRAVITY: Implement this feature as specified. It replaces basic career and contact handling in the Master Document.
+
+SECTION 1: CRITICAL EMAIL STATUS AWARENESS FOR ANTI-GRAVITY
+
+
+
+ANTI-GRAVITY MUST READ THIS SECTION FIRST AND BUILD ACCORDINGLY.
+
+
+
+EMAIL STATUS AT TIME OF DEVELOPMENT:
+
+
+
+Email
+
+Status
+
+System Role
+
+Anti-Gravity Instruction
+
+superadmin@bfpsedu.in
+
+FINALIZED
+
+Master Admin ERP login (hardcoded in seed)
+
+Hardcode in DB seed. Never changeable from ERP.
+
+careers@bfpsedu.in
+
+FINALIZED
+
+Receives career applications via email
+
+Hardcode IMAP monitor in career service. Build now.
+
+info@bfpsedu.in
+
+FINALIZED
+
+Receives contact/inquiry emails
+
+Hardcode IMAP monitor in contact service. Build now.
+
+admin@bfpsedu.in
+
+FINALIZED
+
+ERP system alert notifications (outgoing only)
+
+Hardcode as notification sender. Build now.
+
+noreply@bfpsedu.in
+
+FINALIZED
+
+All automated outgoing emails
+
+Hardcode as automated sender. Build now.
+
+system@bfpsedu.in
+
+FINALIZED
+
+CI/CD and deployment alerts (outgoing only)
+
+Hardcode in env. Build now.
+
+leave@bfpsedu.in
+
+FINALIZED
+
+Teacher leave email inbox (see Leave Addendum)
+
+Already specced in Leave Addendum. Build now.
+
+ALL OTHER EMAILS
+
+NOT FINALIZED
+
+Role-based staff emails decided after system build
+
+DO NOT hardcode. System must work without them. They are added by Master Admin later via ERP.
+
+
+
+WHAT 'NOT FINALIZED' MEANS FOR ANTI-GRAVITY:
+
+- Do NOT hardcode any director, principal, teacher, accounts, or reception emails
+
+- The ERP must function fully without those emails being created yet
+
+- When Master Admin adds a user (e.g. Ram Sharma as Teacher), Admin enters:
+
+    Name, Role, Email (whatever email is decided at that time)
+
+- That email becomes Ram's ERP login and notification address
+
+- System uses whatever email Master Admin assigns -- no assumptions
+
+- Staff email naming convention (firstname.role@bfpsedu.in) is a GUIDELINE, not enforced by system
+
+
+
+
+SECTION 2: CAREER APPLICATION OMNICHANNEL OVERVIEW
+
+
+
+A job applicant can reach BFPS via TWO channels:
+
+
+
+CHANNEL 1: Website Career Form
+
+  Applicant visits: www.bfpsedu.in/careers
+
+  Fills form: Name, Phone, Email, Position, Experience, Qualification, Resume (upload), Cover Letter
+
+  On submit: POST /api/v1/career-applications
+
+  Resume: uploaded to Cloudinary, URL stored in DB
+
+
+
+CHANNEL 2: Email to careers@bfpsedu.in
+
+  Applicant emails: careers@bfpsedu.in
+
+  Subject contains: Position they are applying for
+
+  Body contains: Their details, cover letter
+
+  Attachment: Resume (PDF or DOCX)
+
+  ERP reads inbox via IMAP every 10 minutes
+
+  Resume attachment uploaded to Cloudinary automatically
+
+
+
+If same applicant uses BOTH channels for the same position:
+
+System detects duplicate, merges into ONE application, ignores the second.
+
+Only ONE application appears in the admin panel for that applicant+position combo.
+
+
+
+
+SECTION 3: CAREER DUPLICATE DETECTION AND MERGE LOGIC
+
+
+
+3.1 Duplicate Detection Keys
+
+Two career applications are considered DUPLICATES if ALL of these match:
+
+  Key 1: applicantEmail (normalized to lowercase, trimmed)
+
+  Key 2: positionTitle (normalized to lowercase, trimmed)
+
+  Key 3: Both submitted within 72 hours of each other
+
+
+
+If the applicant applies for TWO DIFFERENT positions, those are NOT duplicates.
+
+They are two separate valid applications and both appear in the admin panel.
+
+
+
+3.2 Detection Algorithm
+
+TRIGGER: New career application arrives (from either channel)
+
+
+
+STEP 1: Normalize incoming data
+
+  - applicantEmail: toLowerCase().trim()
+
+  - positionTitle: toLowerCase().trim()
+
+
+
+STEP 2: Query database
+
+  SELECT * FROM CareerApplication
+
+  WHERE LOWER(email) = [normalized email]
+
+  AND LOWER(positionTitle) = [normalized position]
+
+  AND isDuplicate = false
+
+  AND status != 'WITHDRAWN'
+
+  AND createdAt >= NOW() - INTERVAL '72 hours'
+
+
+
+RESULT A: No match found
+
+  -- Create new CareerApplication record normally
+
+  -- source = FORM | EMAIL (whichever channel)
+
+  -- isDuplicate = false
+
+  -- Auto-reply email to applicant: 'We have received your application for [Position].'
+
+  -- Notification to admin panel: new application badge +1
+
+
+
+RESULT B: Existing application found (DUPLICATE DETECTED)
+
+  -- PRIMARY: the existing application (created first)
+
+  -- SECONDARY: the incoming new submission
+
+
+
+  Action on PRIMARY:
+
+    -- source updated to MERGED (was FORM or EMAIL, now MERGED)
+
+    -- If SECONDARY has resume and PRIMARY does not: attach SECONDARY resume to PRIMARY
+
+    -- If SECONDARY has cover letter and PRIMARY does not: append to PRIMARY
+
+    -- Add dedup log: 'Merged [EMAIL/FORM] submission received at [timestamp]'
+
+    -- PRIMARY stays in admin queue unchanged
+
+
+
+  Action on SECONDARY:
+
+    -- Create record with isDuplicate = true
+
+    -- mergedIntoId = PRIMARY application ID
+
+    -- status = DUPLICATE_CANCELLED
+
+    -- Do NOT show in admin panel main list
+
+    -- Do NOT send new application notification to admin
+
+
+
+  Auto-reply to applicant:
+
+    'Thank you for your application for [Position] at BFPS.
+
+     We had already received your application (Ref: [primaryId]).
+
+     Your submission has been noted and combined with your existing application.
+
+     We will contact you at this email address regarding next steps.'
+
+
+
+3.3 Career Application Prisma Schema
+
+model CareerApplication {
+
+  id                 Int                    @id @default(autoincrement())
+
+  referenceId        String                 @unique @default(cuid())
+
+  jobPostingId       Int?
+
+  jobPosting         JobPosting?            @relation(fields: [jobPostingId], references: [id])
+
+  applicantName      String
+
+  email              String
+
+  phone              String?
+
+  position           String                 -- normalized position title
+
+  experience         String?
+
+  qualification      String?
+
+  resumeUrl          String?                -- Cloudinary URL
+
+  resumeCloudinaryId String?
+
+  coverLetter        String?                @db.Text
+
+  source             ApplicationSource      -- FORM | EMAIL | MERGED
+
+  status             ApplicationStatus      -- NEW | REVIEWING | SHORTLISTED | INTERVIEW | SELECTED | REJECTED | WITHDRAWN | DUPLICATE_CANCELLED
+
+  isDuplicate        Boolean                @default(false)
+
+  mergedIntoId       Int?
+
+  deduplicationLog   String?                @db.Text
+
+  autoReplySent      Boolean                @default(false)
+
+  adminNotes         String?                @db.Text
+
+  reviewedBy         Int?
+
+  createdAt          DateTime               @default(now())
+
+  updatedAt          DateTime               @updatedAt
+
+}
+
+
+
+enum ApplicationSource { FORM EMAIL MERGED }
+
+enum ApplicationStatus { NEW REVIEWING SHORTLISTED INTERVIEW SELECTED REJECTED WITHDRAWN DUPLICATE_CANCELLED }
+
+
+
+Indexes required:
+
+  @@index([email, position])
+
+  @@index([status])
+
+  @@index([isDuplicate])
+
+  @@index([createdAt])
+
+
+
+
+SECTION 4: CAREER EMAIL IMAP SERVICE
+
+
+
+File: /backend/src/services/career.imap.service.js
+
+Cron: /backend/src/cron/career.email.cron.js -- runs every 10 minutes
+
+
+
+IMAP CONFIG:
+
+  host:     process.env.CAREER_IMAP_HOST
+
+  port:     993
+
+  tls:      true
+
+  user:     careers@bfpsedu.in
+
+  password: process.env.CAREER_EMAIL_PASS
+
+
+
+ENV VARIABLES REQUIRED (add to .env.example):
+
+  CAREER_EMAIL_USER=careers@bfpsedu.in
+
+  CAREER_EMAIL_PASS=[serverbyte_password]
+
+  CAREER_IMAP_HOST=[serverbyte_imap_host]
+
+  CAREER_IMAP_PORT=993
+
+
+
+PARSING LOGIC FOR EACH INCOMING EMAIL:
+
+  1. Extract senderEmail: from.value[0].address
+
+  2. Extract senderName: from.value[0].name
+
+  3. Extract subject: subject field
+
+  4. Extract body: text or html field (convert HTML to plain text)
+
+  5. Extract position from subject using keywords:
+
+     - Look for patterns: 'Application for [X]', 'Applying for [X]', 'Re: [X]'
+
+     - If subject matches an active JobPosting title: link to that posting
+
+     - If no match: position = subject string (admin can correct from panel)
+
+  6. Check for resume attachment:
+
+     - Accepted MIME types: application/pdf, application/msword,
+
+       application/vnd.openxmlformats-officedocument.wordprocessingml.document
+
+     - If valid attachment found: upload to Cloudinary, store URL
+
+     - If attachment is invalid type: log warning, proceed without resume
+
+  7. Run DUPLICATE DETECTION (Section 3.2)
+
+  8. Create CareerApplication record (or merge per dedup logic)
+
+  9. Mark email as READ
+
+  10. Send auto-reply from noreply@bfpsedu.in
+
+
+
+UNRECOGNIZED EMAIL HANDLING:
+
+  If email appears to be spam (no name, no readable content): mark READ, skip
+
+  If email has no position context: create application with position='Unspecified'
+
+  Admin can update position and link to job posting from the panel
+
+
+
+
+SECTION 5: CAREER API ENDPOINTS (UPDATED)
+
+
+
+
+
+GET    /api/v1/careers/jobs             public: list active job postings
+
+POST   /api/v1/careers/jobs             admin: create job posting
+
+PUT    /api/v1/careers/jobs/:id         admin: update job posting
+
+DELETE /api/v1/careers/jobs/:id         admin: delete/close job posting
+
+
+
+POST   /api/v1/career-applications
+
+  auth: none (public endpoint)
+
+  multipart: { name, email, phone, position, experience, qualification, coverLetter } + resume file
+
+  action: run dedup check, create or merge, auto-reply, notify admin
+
+  returns: { referenceId, isDuplicate, mergedIntoId?, message }
+
+
+
+GET    /api/v1/career-applications
+
+  auth: Master Admin, Admin, Director
+
+  query: status, jobPostingId, source, isDuplicate(default=false), page, limit
+
+  NOTE: isDuplicate=false by default -- admin never sees merged/cancelled duplicates unless they filter
+
+
+
+GET    /api/v1/career-applications/:id
+
+  auth: Master Admin, Admin, Director
+
+  returns: full application with deduplication log if applicable
+
+
+
+PUT    /api/v1/career-applications/:id
+
+  auth: Master Admin, Admin
+
+  body: { status, adminNotes }
+
+
+
+POST   /api/v1/career-applications/:id/reply
+
+  auth: Master Admin, Admin
+
+  body: { message }
+
+  action: sends email from careers@bfpsedu.in (or noreply@) to applicant
+
+
+
+GET    /api/v1/career-applications/:id/resume
+
+  auth: Master Admin, Admin, Director
+
+  returns: Cloudinary resume URL for download
+
+
+
+GET    /api/v1/career-applications/stats
+
+  auth: Master Admin, Admin
+
+  returns: { total, byStatus{}, bySource{}, duplicatesDetected, thisMonth }
+
+
+
+
+SECTION 6: CONTACT/INQUIRY OMNICHANNEL OVERVIEW
+
+
+
+A person can contact BFPS via TWO channels:
+
+
+
+CHANNEL 1: Website Contact Form
+
+  Visitor goes to: www.bfpsedu.in/contact
+
+  Fills form: Name, Phone, Email, Subject, Message
+
+  On submit: POST /api/v1/contact
+
+
+
+CHANNEL 2: Direct Email to info@bfpsedu.in
+
+  Person sends email to info@bfpsedu.in directly
+
+  ERP reads inbox via IMAP every 10 minutes
+
+  Parsed into ContactEnquiry record automatically
+
+
+
+If same person sends a contact form AND an email about the same topic:
+
+System detects duplicate, merges into ONE enquiry. Admin sees only one record.
+
+
+
+
+SECTION 7: CONTACT DUPLICATE DETECTION AND MERGE LOGIC
+
+
+
+7.1 Duplicate Detection Keys for Contact
+
+Two contact enquiries are considered DUPLICATES if:
+
+  RULE A: Same email address AND submitted within 2 hours of each other
+
+  OR
+
+  RULE B: Same phone number AND submitted within 2 hours of each other
+
+  OR
+
+  RULE C: Same email AND same subject (normalized) regardless of time window
+
+
+
+ANY ONE of Rule A, B, or C triggers duplicate detection.
+
+
+
+7.2 Contact Detection Algorithm
+
+TRIGGER: New contact enquiry arrives (form or email)
+
+
+
+STEP 1: Normalize
+
+  - email: toLowerCase().trim()
+
+  - phone: remove spaces, dashes, +91 prefix if present, keep 10 digits
+
+  - subject: toLowerCase().trim()
+
+
+
+STEP 2: Query for duplicates
+
+  SELECT * FROM ContactEnquiry
+
+  WHERE isDuplicate = false
+
+  AND status != 'RESOLVED'
+
+  AND (
+
+    (email = [email] AND createdAt >= NOW() - INTERVAL '2 hours')
+
+    OR (phone = [phone] AND phone IS NOT NULL AND createdAt >= NOW() - INTERVAL '2 hours')
+
+    OR (email = [email] AND LOWER(subject) = [normalized subject])
+
+  )
+
+
+
+RESULT A: No match -- Create new ContactEnquiry, source = FORM or EMAIL
+
+  Auto-reply: 'Thank you for contacting BFPS. We will respond within 24 hours.'
+
+
+
+RESULT B: Match found -- DUPLICATE DETECTED
+
+  PRIMARY: existing record
+
+  SECONDARY: incoming
+
+
+
+  Action on PRIMARY:
+
+    -- source updated to MERGED
+
+    -- If SECONDARY message has additional info not in PRIMARY: append to PRIMARY notes
+
+    -- Dedup log updated with timestamp and channel of secondary
+
+
+
+  Action on SECONDARY:
+
+    -- Record created with isDuplicate = true
+
+    -- mergedIntoId = PRIMARY ID
+
+    -- status = DUPLICATE_CANCELLED
+
+    -- NOT shown in admin panel
+
+
+
+  Auto-reply to sender:
+
+    'Thank you for reaching out to BFPS.
+
+     We have already received your enquiry (Ref: [primaryRefId]).
+
+     Our team will contact you shortly. No further action needed.'
+
+
+
+7.3 ContactEnquiry Prisma Schema (Updated)
+
+model ContactEnquiry {
+
+  id               Int              @id @default(autoincrement())
+
+  referenceId      String           @unique @default(cuid())
+
+  name             String
+
+  email            String?
+
+  phone            String?
+
+  subject          String
+
+  message          String           @db.Text
+
+  source           EnquirySource    -- FORM | EMAIL | MERGED
+
+  status           EnquiryStatus    -- NEW | READ | IN_PROGRESS | RESOLVED | DUPLICATE_CANCELLED
+
+  isDuplicate      Boolean          @default(false)
+
+  mergedIntoId     Int?
+
+  deduplicationLog String?          @db.Text
+
+  handledBy        Int?
+
+  adminNotes       String?          @db.Text
+
+  autoReplySent    Boolean          @default(false)
+
+  resolvedAt       DateTime?
+
+  createdAt        DateTime         @default(now())
+
+  updatedAt        DateTime         @updatedAt
+
+}
+
+
+
+enum EnquirySource { FORM EMAIL MERGED }
+
+enum EnquiryStatus { NEW READ IN_PROGRESS RESOLVED DUPLICATE_CANCELLED }
+
+
+
+Indexes required:
+
+  @@index([email, createdAt])
+
+  @@index([phone, createdAt])
+
+  @@index([status])
+
+  @@index([isDuplicate])
+
+
+
+
+SECTION 8: CONTACT EMAIL IMAP SERVICE
+
+
+
+File: /backend/src/services/contact.imap.service.js
+
+Cron: /backend/src/cron/contact.email.cron.js -- runs every 10 minutes
+
+
+
+IMAP CONFIG:
+
+  host:     process.env.CONTACT_IMAP_HOST
+
+  port:     993
+
+  tls:      true
+
+  user:     info@bfpsedu.in
+
+  password: process.env.CONTACT_EMAIL_PASS
+
+
+
+ENV VARIABLES REQUIRED (add to .env.example):
+
+  CONTACT_EMAIL_USER=info@bfpsedu.in
+
+  CONTACT_EMAIL_PASS=[serverbyte_password]
+
+  CONTACT_IMAP_HOST=[serverbyte_imap_host]
+
+  CONTACT_IMAP_PORT=993
+
+
+
+PARSING LOGIC FOR EACH INCOMING EMAIL:
+
+  1. Extract: senderEmail, senderName, subject, body (plain text)
+
+  2. Filter out: auto-replies, bounce messages, newsletter subscriptions
+
+     - Skip if subject contains: 'auto-reply', 'out of office', 'delivery failed', 'mailer-daemon'
+
+     - Skip if sender is: noreply@*, no-reply@*, mailer-daemon@*
+
+  3. Extract phone from body using regex: Indian phone patterns
+
+     Pattern: /(?:\+91|91|0)?[6-9]\d{9}/
+
+  4. Run DUPLICATE DETECTION (Section 7.2)
+
+  5. Create ContactEnquiry record or merge
+
+  6. Mark email as READ
+
+  7. Send auto-reply from noreply@bfpsedu.in
+
+  8. Notify admin panel: new enquiry badge +1
+
+
+
+8.1 Important: ADMISSION ENQUIRY vs CONTACT ENQUIRY
+
+Admission enquiries go to: admission@bfpsedu.in (handled by Lead CRM module)
+
+General contact goes to: info@bfpsedu.in (handled by Contact Enquiry module)
+
+These are SEPARATE modules. Do NOT mix them.
+
+  leads table         <- admission enquiries (CRM pipeline)
+
+  contact_enquiries   <- general contact (info/support requests)
+
+  career_applications <- job applications
+
+
+
+
+SECTION 9: CONTACT API ENDPOINTS (UPDATED)
+
+
+
+
+
+POST   /api/v1/contact
+
+  auth: none (public)
+
+  body: { name, email, phone, subject, message }
+
+  action: dedup check, create or merge, auto-reply, admin notification
+
+  returns: { referenceId, isDuplicate, message }
+
+
+
+GET    /api/v1/contact
+
+  auth: Master Admin, Admin, Reception
+
+  query: status, source, isDuplicate(default=false), dateFrom, dateTo, page, limit
+
+
+
+GET    /api/v1/contact/:id
+
+  auth: Master Admin, Admin, Reception
+
+
+
+PUT    /api/v1/contact/:id
+
+  auth: Master Admin, Admin, Reception
+
+  body: { status, adminNotes, handledBy }
+
+
+
+POST   /api/v1/contact/:id/reply
+
+  auth: Master Admin, Admin, Reception
+
+  body: { message }
+
+  action: sends email reply to original enquirer
+
+
+
+GET    /api/v1/contact/stats
+
+  auth: Master Admin, Admin
+
+  returns: { total, byStatus{}, bySource{}, duplicatesDetected, avgResponseTime }
+
+
+
+
+SECTION 10: UI SPECIFICATION
+
+
+
+10.1 Career Applications Panel (ERP)
+
+ROUTE: /erp/careers
+
+ACCESS: Master Admin, Admin, Director
+
+
+
+LAYOUT:
+
+  Stats row: [Total Applications] [New Today] [Shortlisted] [Duplicates Merged]
+
+
+
+  Filters:
+
+    - Status: All | New | Reviewing | Shortlisted | Interview | Selected | Rejected
+
+    - Source: All | Form | Email | Merged
+
+    - Position/Job dropdown
+
+    - Date range
+
+    - Search by name or email
+
+
+
+  Table columns:
+
+    Ref ID | Name | Email | Position | Source Tag | Status Badge | Resume | Date | Actions
+
+
+
+  SOURCE TAG (pill badge):
+
+    FORM   -- 'Web Form'
+
+    EMAIL  -- 'Email'
+
+    MERGED -- 'Merged (Web+Email)' or 'Merged (Email+Web)'
+
+
+
+  STATUS BADGE:
+
+    NEW          -- blue
+
+    REVIEWING    -- yellow
+
+    SHORTLISTED  -- cyan
+
+    INTERVIEW    -- orange
+
+    SELECTED     -- green
+
+    REJECTED     -- red
+
+
+
+  Resume column: Download icon (links to Cloudinary URL)
+
+  Actions: View Details | Update Status | Reply | Notes
+
+
+
+10.2 Application Detail View
+
+ROUTE: /erp/careers/:id
+
+Shows: Full application details, deduplication log (if merged), resume download,
+
+       status timeline, admin notes, reply history
+
+
+
+10.3 Contact Enquiries Panel (ERP)
+
+ROUTE: /erp/contact
+
+ACCESS: Master Admin, Admin, Reception
+
+
+
+LAYOUT:
+
+  Stats row: [Total Enquiries] [New/Unread] [In Progress] [Resolved] [Duplicates Merged]
+
+
+
+  Filters:
+
+    - Status: All | New | Read | In Progress | Resolved
+
+    - Source: All | Form | Email | Merged
+
+    - Date range
+
+    - Search by name, email, phone
+
+
+
+  Table columns:
+
+    Ref ID | Name | Contact (email/phone) | Subject | Source Tag | Status | Date | Actions
+
+
+
+  SOURCE TAG: same as career (Form | Email | Merged)
+
+  STATUS: color-coded badges
+
+  Actions: View | Mark as Read | Reply | Resolve | Notes
+
+
+
+10.4 Website Career Form UI (/careers page)
+
+Form fields:
+
+  - Full Name (required)
+
+  - Phone Number (required)
+
+  - Email Address (required)
+
+  - Position Applying For (dropdown: pulls from active JobPosting list + 'Other' option)
+
+  - Years of Experience (dropdown: 0-1, 1-3, 3-5, 5-10, 10+)
+
+  - Highest Qualification (dropdown: Graduate, Post Graduate, PhD, Other)
+
+  - Upload Resume (required, accepts PDF and DOCX, max 5MB)
+
+  - Cover Letter / Message (optional, textarea)
+
+  Submit button: 'Submit Application'
+
+
+
+On submit:
+
+  - Validate all required fields client-side
+
+  - Show loading spinner
+
+  - POST multipart form to /api/v1/career-applications
+
+  - On success: show 'Your application has been submitted. Reference ID: [id]'
+
+  - On duplicate: show 'We already have your application. Ref: [primaryId]'
+
+  - On error: show specific error message, do NOT clear form
+
+
+
+10.5 Website Contact Form UI (/contact page)
+
+Form fields:
+
+  - Full Name (required)
+
+  - Phone Number (optional but encouraged)
+
+  - Email Address (required)
+
+  - Subject (required)
+
+  - Message (required, textarea, min 20 chars)
+
+  Submit button: 'Send Message'
+
+
+
+On submit:
+
+  - POST to /api/v1/contact
+
+  - On success: 'Your message has been received. We will respond within 24 hours.'
+
+  - On duplicate: 'We already have your enquiry on file. Our team will respond soon.'
+
+
+
+
+SECTION 11: UNIT TESTS FOR CAREER AND CONTACT MODULES
+
+
+
+
+
+11.1 Career Tests (/backend/src/__tests__/career.test.js)
+
+TEST CA.1:  Web form submit creates CareerApplication, source=FORM, isDuplicate=false
+
+TEST CA.2:  Web form returns referenceId in response
+
+TEST CA.3:  Auto-reply email sent to applicant after form submit (mock SMTP verified)
+
+TEST CA.4:  Admin gets notification when new application arrives
+
+TEST CA.5:  Email to careers@bfpsedu.in creates CareerApplication, source=EMAIL
+
+TEST CA.6:  Resume attachment from email uploaded to Cloudinary, URL stored in DB
+
+TEST CA.7:  Email without resume creates application with resumeUrl=null
+
+DUPLICATE TESTS:
+
+TEST CA.8:  Form submit + email for same email+position within 72h = MERGED
+
+  Assert: Only 1 active record in admin panel (isDuplicate=false)
+
+  Assert: Second record has isDuplicate=true, status=DUPLICATE_CANCELLED
+
+  Assert: PRIMARY source updated to MERGED
+
+TEST CA.9:  If email has resume and form did not: resume attached to PRIMARY after merge
+
+TEST CA.10: Two applications for DIFFERENT positions from same email = 2 separate records
+
+TEST CA.11: Application older than 72h + new submission for same = NOT merged (new record)
+
+TEST CA.12: Admin can update status from NEW to REVIEWING
+
+TEST CA.13: Admin reply sends email to applicant (mock SMTP verified)
+
+TEST CA.14: GET /career-applications with isDuplicate=false excludes cancelled duplicates
+
+TEST CA.15: Malicious file type (exe) as resume attachment: 400 rejected
+
+
+
+11.2 Contact Tests (/backend/src/__tests__/contact.test.js)
+
+TEST CO.1:  Web form submit creates ContactEnquiry, source=FORM, isDuplicate=false
+
+TEST CO.2:  Auto-reply email sent to submitter (mock SMTP verified)
+
+TEST CO.3:  Email to info@bfpsedu.in creates ContactEnquiry, source=EMAIL
+
+DUPLICATE TESTS (RULE A):
+
+TEST CO.4:  Same email, form + email within 2 hours = MERGED
+
+  Assert: 1 active record, source=MERGED, second has isDuplicate=true
+
+DUPLICATE TESTS (RULE B):
+
+TEST CO.5:  Same phone number (different email), 2 submissions within 2 hours = MERGED
+
+DUPLICATE TESTS (RULE C):
+
+TEST CO.6:  Same email + same subject (different time) = MERGED regardless of time gap
+
+TEST CO.7:  Same email but DIFFERENT subject after 2 hours = separate records (NOT merged)
+
+TEST CO.8:  Auto-reply, bounce email (from mailer-daemon): SKIPPED, not stored
+
+TEST CO.9:  Auto-reply, out-of-office email: SKIPPED, not stored
+
+TEST CO.10: Admin marks as RESOLVED, resolvedAt timestamp set
+
+TEST CO.11: Admin reply sends email to enquirer (mock SMTP verified)
+
+TEST CO.12: Contact form with no email and no phone: 400 (at least one required)
+
+
+
+
+SECTION 12: ANTI-GRAVITY TASK LIST FOR THIS FEATURE
+
+
+
+These tasks INSERT INTO Phase 2 of the main task list from Master Doc v3.0.
+
+They replace the basic career and contact handling described there.
+
+
+
+Backend Tasks
+
+
+
+CA.1:  Update Prisma schema: add full CareerApplication model (Section 3.3)
+
+       Run migration: npx prisma migrate dev --name career-contact-omnichannel
+
+       --> PUSH | LINT | commit: 'db: career and contact omnichannel schema'
+
+CA.2:  Update Prisma schema: add full ContactEnquiry model (Section 7.3)
+
+       --> PUSH | LINT | commit: 'db: contact enquiry omnichannel schema'
+
+CA.3:  Create /backend/src/services/career.imap.service.js
+
+       Implement: connectIMAP, fetchUnseenEmails, parseCareerEmail,
+
+                 extractResume, uploadResumeToCloudinary, markAsRead
+
+       --> PUSH | LINT | TESTS | PR | COPILOT | MERGE
+
+CA.4:  Create /backend/src/services/career.dedup.service.js
+
+       Implement: detectCareerDuplicate, mergeCareerApplications
+
+       --> PUSH | LINT | TESTS | PR | COPILOT | MERGE
+
+CA.5:  Create /backend/src/cron/career.email.cron.js
+
+       Schedule: every 10 minutes
+
+       --> PUSH | LINT | TESTS | PR | COPILOT | MERGE
+
+CA.6:  Create /backend/src/controllers/career.controller.js
+
+       Implement: submitApplication, getAllApplications, getById,
+
+                 updateStatus, replyToApplicant, getStats
+
+       --> PUSH | LINT | TESTS | PR | COPILOT | MERGE
+
+CA.7:  Create /backend/src/routes/career.routes.js
+
+       --> PUSH | LINT | PR | COPILOT | MERGE
+
+CA.8:  Create /backend/src/__tests__/career.test.js
+
+       Implement all 15 tests from Section 11.1
+
+       --> PUSH | LINT | PLAYWRIGHT | PR | COPILOT | MERGE
+
+
+
+CO.1:  Create /backend/src/services/contact.imap.service.js
+
+       Implement: connectIMAP, fetchUnseenEmails, parseContactEmail,
+
+                 filterSpam, extractPhone, markAsRead
+
+       --> PUSH | LINT | TESTS | PR | COPILOT | MERGE
+
+CO.2:  Create /backend/src/services/contact.dedup.service.js
+
+       Implement: detectContactDuplicate, mergeContactEnquiries
+
+       --> PUSH | LINT | TESTS | PR | COPILOT | MERGE
+
+CO.3:  Create /backend/src/cron/contact.email.cron.js
+
+       Schedule: every 10 minutes
+
+       --> PUSH | LINT | TESTS | PR | COPILOT | MERGE
+
+CO.4:  Create /backend/src/controllers/contact.controller.js
+
+       Implement: submitContact, getAllEnquiries, getById,
+
+                 updateStatus, replyToEnquirer, getStats
+
+       --> PUSH | LINT | TESTS | PR | COPILOT | MERGE
+
+CO.5:  Create /backend/src/routes/contact.routes.js
+
+       --> PUSH | LINT | PR | COPILOT | MERGE
+
+CO.6:  Create /backend/src/__tests__/contact.test.js
+
+       Implement all 12 tests from Section 11.2
+
+       --> PUSH | LINT | PLAYWRIGHT | PR | COPILOT | MERGE
+
+
+
+Frontend Tasks (ERP)
+
+
+
+FE.1:  Create /frontend/src/app/(erp)/careers/page.tsx
+
+       Career Applications panel with stats, filters, table, source tags, status badges
+
+       --> PUSH | LINT | PLAYWRIGHT | PR | COPILOT | MERGE
+
+FE.2:  Create /frontend/src/app/(erp)/careers/[id]/page.tsx
+
+       Application detail: full info, dedup log, resume download, status update, reply
+
+       --> PUSH | LINT | PLAYWRIGHT | PR | COPILOT | MERGE
+
+FE.3:  Create /frontend/src/app/(erp)/contact/page.tsx
+
+       Contact Enquiries panel with stats, filters, table, source tags, status badges
+
+       --> PUSH | LINT | PLAYWRIGHT | PR | COPILOT | MERGE
+
+FE.4:  Create /frontend/src/app/(erp)/contact/[id]/page.tsx
+
+       Enquiry detail: full info, dedup log, reply, resolve, notes
+
+       --> PUSH | LINT | PLAYWRIGHT | PR | COPILOT | MERGE
+
+
+
+Website Tasks
+
+
+
+WEB.1: Create /website/src/components/CareerForm.tsx
+
+       Full form with resume upload, position dropdown (from jobs API), validation
+
+       Show referenceId on success, handle duplicate response gracefully
+
+       --> PUSH | LINT | PLAYWRIGHT | PR | COPILOT | MERGE
+
+WEB.2: Create /website/src/components/ContactForm.tsx
+
+       Contact form with validation, handle duplicate response gracefully
+
+       --> PUSH | LINT | PLAYWRIGHT | PR | COPILOT | MERGE
+
+
+
+END OF DOCUMENT
+
+BFPS Career & Contact Deduplication Addendum v1.0 | Add to: BabaFaridPublicSchool/Prompt/
+
+Baba Farid Public School | erp.bfpsedu.in | careers@bfpsedu.in | info@bfpsedu.in | v1.0

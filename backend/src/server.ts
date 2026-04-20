@@ -1,5 +1,6 @@
 import http from 'http';
 import { AddressInfo } from 'net';
+
 import dotenv from 'dotenv';
 
 // Load environment variables FIRST
@@ -10,6 +11,9 @@ import logger from './utils/logger';
 import { connectDatabase, disconnectDatabase } from './config/database';
 import { connectRedis, disconnectRedis } from './config/redis';
 import { configureCloudinary } from './config/cloudinary';
+import { startAttendanceCron } from './cron/attendance-report.cron';
+import { startFeeReminderCron } from './cron/fee-reminder.cron';
+import { startFeeReconciliationCron } from './cron/fee-reconciliation.cron';
 
 /**
  * BFPS ERP Backend - Server Entry Point (TypeScript)
@@ -29,6 +33,11 @@ async function startServer(): Promise<void> {
 
     // Configure Cloudinary
     configureCloudinary();
+
+    // Start cron jobs
+    startAttendanceCron();
+    startFeeReminderCron();
+    startFeeReconciliationCron();
 
     // Start HTTP server
     server.listen(PORT, (): void => {
